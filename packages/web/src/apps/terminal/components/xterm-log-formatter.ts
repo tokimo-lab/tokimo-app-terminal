@@ -93,8 +93,7 @@ function formatPhaseTag(
 ): string {
   const color = colors[phase] ?? FG_WHITE;
   const label = labels[phase] ?? phase.toUpperCase();
-  // Pad to 10 chars for alignment
-  return `${color}${BOLD}[${label.padEnd(9)}]${RESET}`;
+  return `${color}${BOLD}[${label}]${RESET}`;
 }
 
 function formatSize(bytes: number): string {
