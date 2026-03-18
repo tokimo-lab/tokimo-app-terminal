@@ -190,7 +190,7 @@ export default function XTermLogViewer({
   if (loading) {
     return (
       <div
-        className="rounded-lg bg-zinc-950 flex items-center justify-center"
+        className="bg-zinc-950 flex items-center justify-center"
         style={{ height, minHeight }}
       >
         <div className="text-zinc-500 text-sm">Loading...</div>
@@ -201,7 +201,7 @@ export default function XTermLogViewer({
   return (
     <div
       ref={containerRef}
-      className="rounded-lg overflow-hidden [&_.xterm-viewport]:!overflow-y-auto"
+      className="overflow-hidden [&_.xterm-viewport]:!overflow-y-auto"
       style={{ height, minHeight }}
     />
   );
