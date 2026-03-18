@@ -4,6 +4,7 @@
  * Used by SubscriptionLogViewer & DownloadLogViewer.
  */
 
+import "@xterm/xterm/css/xterm.css";
 import type { Terminal } from "@xterm/xterm";
 import { useEffect, useRef } from "react";
 
