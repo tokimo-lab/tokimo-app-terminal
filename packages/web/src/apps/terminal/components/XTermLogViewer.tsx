@@ -34,6 +34,8 @@ export default function XTermLogViewer({
   const termRef = useRef<Terminal | null>(null);
   const writtenCountRef = useRef(0);
   const userScrolledRef = useRef(false);
+  const linesRef = useRef(lines);
+  linesRef.current = lines;
 
   // Initialize terminal
   useEffect(() => {
@@ -130,6 +132,15 @@ export default function XTermLogViewer({
 
       termRef.current = term;
       writtenCountRef.current = 0;
+
+      // Flush any lines that arrived before the terminal was ready
+      const pending = linesRef.current;
+      if (pending.length > 0) {
+        for (const line of pending) {
+          term.writeln(line);
+        }
+        writtenCountRef.current = pending.length;
+      }
     };
 
     init();
