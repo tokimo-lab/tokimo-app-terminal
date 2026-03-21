@@ -2,7 +2,7 @@
  * ANSI log formatter for xterm.js
  * Converts structured JSONL log entries into ANSI-colored terminal text.
  */
-import type { DownloadLogEntry, SubscriptionLogEntry } from "@acme/types";
+import type { DownloadLogEntry, SubscriptionLogEntry } from "@tokiomo/types";
 
 // ─── ANSI escape helpers ───────────────────────────────
 
