@@ -6,7 +6,6 @@ use axum::{
         ws::{Message, WebSocket, WebSocketUpgrade},
         State,
     },
-    http::HeaderMap,
     response::IntoResponse,
 };
 use futures_util::{SinkExt, StreamExt};
@@ -14,9 +13,8 @@ use portable_pty::{CommandBuilder, NativePtySystem, PtySize, PtySystem};
 use serde::Deserialize;
 use tokio::sync::mpsc;
 
-use crate::db::repos::user::user_repo::UserRepo;
 use crate::error::AppError;
-use crate::handlers::user::extract_session_auth;
+use crate::handlers::user::AdminUser;
 use crate::AppState;
 
 #[derive(Deserialize)]
@@ -27,18 +25,10 @@ struct ResizePayload {
 
 /// WebSocket upgrade handler — authenticates as admin, then hands off to PTY session.
 pub async fn terminal_ws(
-    State(state): State<Arc<AppState>>,
-    headers: HeaderMap,
+    State(_state): State<Arc<AppState>>,
+    AdminUser(_): AdminUser,
     ws: WebSocketUpgrade,
 ) -> Result<impl IntoResponse, AppError> {
-    let auth = extract_session_auth(&state.db, &headers).await?;
-    let user = UserRepo::get_by_id(&state.db, &auth.user_id)
-        .await?
-        .ok_or_else(|| AppError::Unauthorized("用户不存在".into()))?;
-    if user.role != "superadmin" && user.role != "admin" {
-        return Err(AppError::Forbidden("需要管理员权限".into()));
-    }
-
     Ok(ws.on_upgrade(move |socket| handle_terminal_session(socket)))
 }
 
