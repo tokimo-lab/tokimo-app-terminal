@@ -185,5 +185,5 @@ async fn handle_terminal_session(socket: WebSocket) {
     }
 
     let _ = child.kill();
-    tracing::info!("terminal session ended");
+    tracing::debug!("terminal session ended");
 }
