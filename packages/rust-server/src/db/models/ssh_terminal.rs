@@ -22,6 +22,7 @@ pub struct SshTerminalOutput {
     /// Whether a private key is set
     pub has_private_key: bool,
     pub startup_command: Option<String>,
+    pub notes: Option<String>,
     #[ts(type = "number")]
     pub sort_order: i32,
     pub is_enabled: bool,
@@ -43,6 +44,7 @@ impl From<ssh_terminals::Model> for SshTerminalOutput {
             has_password: m.password.is_some(),
             has_private_key: m.private_key.is_some(),
             startup_command: m.startup_command,
+            notes: m.notes,
             sort_order: m.sort_order,
             is_enabled: m.is_enabled,
             created_at: m.created_at.to_rfc3339(),

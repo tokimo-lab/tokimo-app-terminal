@@ -14,13 +14,14 @@ import {
   RefreshCw,
   ScrollText,
 } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { api } from "../../generated/rust-api";
 import type { DockerContainerEntry } from "../../generated/rust-types/DockerContainerEntry";
 import type { DockerImageEntry } from "../../generated/rust-types/DockerImageEntry";
 import type { DockerNetworkEntry } from "../../generated/rust-types/DockerNetworkEntry";
 import type { DockerStatsEntry } from "../../generated/rust-types/DockerStatsEntry";
 import type { DockerVolumeEntry } from "../../generated/rust-types/DockerVolumeEntry";
+import XTermLogViewer from "../dashboard/XTermLogViewer";
 import DockerContainerTable from "./DockerContainerTable";
 import DockerImageTable from "./DockerImageTable";
 import DockerInspectView from "./DockerInspectView";
@@ -234,9 +235,7 @@ export default function SshDockerPanel({
             {overlay.name} 日志
           </span>
         </div>
-        <pre className="flex-1 overflow-auto px-3 py-2 text-[11px] leading-4 text-zinc-400 font-mono whitespace-pre-wrap break-all">
-          {overlay.logs}
-        </pre>
+        <DockerLogTerminal logs={overlay.logs} />
       </div>
     );
   }
@@ -474,4 +473,10 @@ function MemBadge({ value }: { value: string }) {
   const color =
     n > 80 ? "text-red-400" : n > 50 ? "text-amber-400" : "text-zinc-400";
   return <span className={color}>{value}</span>;
+}
+
+/** xterm.js-based docker log viewer — supports Ctrl+C/V copy-paste */
+function DockerLogTerminal({ logs }: { logs: string }) {
+  const lines = useMemo(() => logs.split("\n"), [logs]);
+  return <XTermLogViewer lines={lines} height="100%" minHeight={0} />;
 }

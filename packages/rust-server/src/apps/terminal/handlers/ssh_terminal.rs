@@ -1,16 +1,19 @@
 use std::sync::Arc;
 
 use axum::{
+    body::Body,
     extract::{
         ws::{Message, WebSocket, WebSocketUpgrade},
-        Path, Query, State,
+        Multipart, Path, Query, State,
     },
     response::{IntoResponse, Json},
 };
+use bytes::Bytes;
 use futures_util::{SinkExt, StreamExt};
 use rust_ssh_terminal::SshCredentials;
 use serde::Deserialize;
 use tokio::sync::mpsc;
+use tokio_stream::wrappers::ReceiverStream;
 use uuid::Uuid;
 
 use crate::db::repos::ssh_terminal_repo::SshTerminalRepo;
@@ -56,6 +59,7 @@ pub struct CreateSshTerminalInput {
     pub private_key: Option<String>,
     pub passphrase: Option<String>,
     pub startup_command: Option<String>,
+    pub notes: Option<String>,
     pub sort_order: Option<i32>,
 }
 
@@ -71,6 +75,7 @@ pub struct UpdateSshTerminalInput {
     pub private_key: Option<String>,
     pub passphrase: Option<String>,
     pub startup_command: Option<String>,
+    pub notes: Option<String>,
     pub sort_order: Option<i32>,
     pub is_enabled: Option<bool>,
 }
@@ -84,6 +89,9 @@ pub struct ListByLibraryQuery {
 #[derive(Debug, Deserialize)]
 pub struct SshWsQuery {
     pub id: String,
+    /// Client-supplied session ID for reconnecting to an existing shell.
+    /// If omitted, a fresh session is started.
+    pub session_id: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -102,6 +110,13 @@ pub struct SshFileOpInput {
 pub struct SshRenameInput {
     pub from: String,
     pub to: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SshMvInput {
+    pub from: String,
+    pub to_dir: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -212,6 +227,7 @@ pub async fn create_ssh_terminal(
         input.private_key.as_deref(),
         input.passphrase.as_deref(),
         input.startup_command.as_deref(),
+        input.notes.as_deref(),
         input.sort_order.unwrap_or(0),
     )
     .await?;
@@ -239,6 +255,7 @@ pub async fn update_ssh_terminal(
         input.private_key.as_ref().map(|s| Some(s.as_str())),
         input.passphrase.as_ref().map(|s| Some(s.as_str())),
         input.startup_command.as_ref().map(|s| Some(s.as_str())),
+        input.notes.as_ref().map(|s| Some(s.as_str())),
         input.sort_order,
         input.is_enabled,
     )
@@ -270,32 +287,99 @@ pub async fn ssh_terminal_ws(
         .id
         .parse()
         .map_err(|_| AppError::BadRequest("invalid id".into()))?;
+    let session_id = query.session_id.clone();
     let terminal = SshTerminalRepo::get_raw(&state.db, id).await?;
     let creds = to_creds(&terminal);
     let startup_command = terminal.startup_command.clone();
-    Ok(ws.on_upgrade(move |socket| handle_ssh_session(socket, creds, startup_command)))
+    let registry = state.ssh_sessions.clone();
+    Ok(ws.on_upgrade(move |socket| {
+        handle_ssh_ws(socket, session_id, creds, startup_command, registry)
+    }))
 }
 
-async fn handle_ssh_session(
+/// Attach a WebSocket client to a (possibly existing) SSH shell session.
+///
+/// * If `session_id` already exists in the registry, the client receives a
+///   history replay and then streams live output from the running shell.
+/// * If not, a new SSH connection is established and registered under
+///   `session_id` (or a fresh UUID when none is supplied).
+async fn handle_ssh_ws(
     socket: WebSocket,
+    session_id: Option<String>,
     creds: SshCredentials,
     startup_command: Option<String>,
+    registry: crate::ssh_session_registry::SshSessionRegistry,
 ) {
+    use crate::ssh_session_registry::SshSessionEntry;
+
     let (mut ws_sink, mut ws_stream) = socket.split();
 
-    let (output_tx, mut output_rx) = mpsc::channel::<Vec<u8>>(256);
-    let (input_tx, input_rx) = mpsc::channel::<rust_ssh_terminal::ShellInput>(256);
+    // Per-client output channel (capacity large enough to buffer history replay).
+    let (client_tx, mut client_rx) = mpsc::channel::<Vec<u8>>(1024);
 
-    // Bridge: SSH output → WebSocket
-    let send_task = tokio::spawn(async move {
-        while let Some(data) = output_rx.recv().await {
-            if ws_sink.send(Message::Binary(data.into())).await.is_err() {
-                break;
+    let session_id = session_id.unwrap_or_else(|| Uuid::new_v4().to_string());
+
+    // ── Attach to existing session or create a new one ────────────────────
+    let input_tx = {
+        let mut reg = registry.lock().await;
+
+        if let Some(entry) = reg.get_mut(&session_id) {
+            // Replay scrollback so the reconnecting client sees previous output.
+            if !entry.history.is_empty() {
+                // best-effort; channel is freshly created so this won't block.
+                let _ = client_tx.try_send(entry.history.clone());
             }
-        }
-    });
+            entry.clients.push(client_tx.clone());
+            entry.input_tx.clone()
+        } else {
+            // New session: open SSH shell and register in the map.
+            let (input_tx, input_rx) = mpsc::channel::<rust_ssh_terminal::ShellInput>(256);
+            let (output_tx, mut output_rx) = mpsc::channel::<Vec<u8>>(256);
 
-    // Bridge: WebSocket → SSH input
+            reg.insert(
+                session_id.clone(),
+                SshSessionEntry {
+                    input_tx: input_tx.clone(),
+                    history: Vec::new(),
+                    clients: vec![client_tx.clone()],
+                },
+            );
+            drop(reg); // release lock before spawning
+
+            // Task: distribute SSH output → history buffer + all clients.
+            let registry_d = registry.clone();
+            let session_id_d = session_id.clone();
+            tokio::spawn(async move {
+                while let Some(data) = output_rx.recv().await {
+                    let mut reg = registry_d.lock().await;
+                    if let Some(entry) = reg.get_mut(&session_id_d) {
+                        entry.broadcast(data);
+                    }
+                }
+                // Shell exited (output_tx dropped) — remove from registry.
+                registry_d.lock().await.remove(&session_id_d);
+                tracing::debug!("SSH session {session_id_d} ended; removed from registry");
+            });
+
+            // Task: run the interactive SSH shell.
+            tokio::spawn(async move {
+                if let Err(e) = rust_ssh_terminal::session::run_interactive_shell(
+                    &creds,
+                    startup_command.as_deref(),
+                    output_tx,
+                    input_rx,
+                )
+                .await
+                {
+                    tracing::error!("SSH session error: {e}");
+                }
+            });
+
+            input_tx
+        }
+    };
+
+    // ── Bridge: WebSocket → SSH input ─────────────────────────────────────
     let recv_task = tokio::spawn(async move {
         while let Some(Ok(msg)) = ws_stream.next().await {
             match msg {
@@ -320,7 +404,9 @@ async fn handle_ssh_session(
                                 .await;
                         }
                     } else if input_tx
-                        .send(rust_ssh_terminal::ShellInput::Data(text.as_bytes().to_vec()))
+                        .send(rust_ssh_terminal::ShellInput::Data(
+                            text.as_bytes().to_vec(),
+                        ))
                         .await
                         .is_err()
                     {
@@ -333,27 +419,21 @@ async fn handle_ssh_session(
         }
     });
 
-    // Run the SSH interactive session
-    let session_task = tokio::spawn(async move {
-        if let Err(e) = rust_ssh_terminal::session::run_interactive_shell(
-            &creds,
-            startup_command.as_deref(),
-            output_tx,
-            input_rx,
-        )
-        .await
-        {
-            tracing::error!("SSH session error: {e}");
+    // ── Bridge: client_rx → WebSocket output ──────────────────────────────
+    let send_task = tokio::spawn(async move {
+        while let Some(data) = client_rx.recv().await {
+            if ws_sink.send(Message::Binary(data.into())).await.is_err() {
+                break;
+            }
         }
     });
 
     tokio::select! {
-        _ = send_task => {}
         _ = recv_task => {}
-        _ = session_task => {}
+        _ = send_task => {}
     }
 
-    tracing::debug!("SSH WebSocket session ended");
+    tracing::debug!("SSH WebSocket client disconnected from session {session_id}");
 }
 
 // ── System info handlers ─────────────────────────────────────────────────────
@@ -456,6 +536,17 @@ pub async fn ssh_terminal_rename(
     Ok(ok_empty())
 }
 
+pub async fn ssh_terminal_mv(
+    State(state): State<Arc<AppState>>,
+    AuthUser(_): AuthUser,
+    Path(id): Path<String>,
+    Json(input): Json<SshMvInput>,
+) -> Result<Json<ApiResponse<()>>, AppError> {
+    let creds = get_creds(&state, &id).await?;
+    rust_ssh_terminal::files::mv_to_dir(&creds, &input.from, &input.to_dir).await?;
+    Ok(ok_empty())
+}
+
 pub async fn ssh_terminal_read_file(
     State(state): State<Arc<AppState>>,
     AuthUser(_): AuthUser,
@@ -485,7 +576,8 @@ pub async fn ssh_terminal_download(
     Query(query): Query<SshFileOpInput>,
 ) -> Result<impl IntoResponse, AppError> {
     let creds = get_creds(&state, &id).await?;
-    let bytes = rust_ssh_terminal::files::download_file(&creds, &query.path).await?;
+
+    // Stream filename from the path
     let filename = query
         .path
         .rsplit('/')
@@ -493,19 +585,88 @@ pub async fn ssh_terminal_download(
         .unwrap_or("download")
         .to_string();
     let safe_filename = filename.replace('"', "\\\"");
-    Ok((
-        [
-            (
-                axum::http::header::CONTENT_TYPE,
-                "application/octet-stream".to_string(),
-            ),
-            (
-                axum::http::header::CONTENT_DISPOSITION,
-                format!("attachment; filename=\"{safe_filename}\""),
-            ),
-        ],
-        bytes,
-    ))
+
+    // Open the SSH channel and start streaming immediately — no full buffering.
+    let rx = rust_ssh_terminal::files::download_stream(&creds, &query.path).await?;
+
+    // Convert the mpsc receiver into an Axum streaming body.
+    let byte_stream = ReceiverStream::new(rx).map(|chunk| {
+        chunk
+            .map(Bytes::from)
+            .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))
+    });
+
+    let headers = [
+        (
+            axum::http::header::CONTENT_TYPE,
+            "application/octet-stream".to_string(),
+        ),
+        (
+            axum::http::header::CONTENT_DISPOSITION,
+            format!("attachment; filename=\"{safe_filename}\""),
+        ),
+    ];
+
+    Ok((headers, Body::from_stream(byte_stream)))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct SshUploadQuery {
+    /// Remote directory to upload into.
+    pub path: String,
+    /// File name to save as on the remote host.
+    pub filename: String,
+}
+
+/// Multipart file upload: POST /api/ssh-terminals/{id}/upload
+///
+/// Query params: `path` (remote dir), `filename` (remote file name)
+/// Body: multipart/form-data with a single `file` part containing the raw bytes.
+pub async fn ssh_terminal_upload(
+    State(state): State<Arc<AppState>>,
+    AuthUser(_): AuthUser,
+    Path(id): Path<String>,
+    Query(query): Query<SshUploadQuery>,
+    mut multipart: Multipart,
+) -> Result<Json<ApiResponse<()>>, AppError> {
+    let creds = get_creds(&state, &id).await?;
+
+    // Validate that the destination path looks sane (no null bytes, etc.)
+    if query.path.contains('\0') || query.filename.contains('\0') {
+        return Err(AppError::BadRequest("invalid path".into()));
+    }
+    // Reject path traversal in filename
+    if query.filename.contains('/') || query.filename.contains("..") {
+        return Err(AppError::BadRequest(
+            "filename must not contain '/' or '..'".into(),
+        ));
+    }
+
+    let remote_path = if query.path.ends_with('/') {
+        format!("{}{}", query.path, query.filename)
+    } else {
+        format!("{}/{}", query.path, query.filename)
+    };
+
+    // Read the (single) file part
+    let mut file_bytes: Option<Vec<u8>> = None;
+    while let Some(field) = multipart
+        .next_field()
+        .await
+        .map_err(|e| AppError::BadRequest(format!("multipart error: {e}")))?
+    {
+        let bytes = field
+            .bytes()
+            .await
+            .map_err(|e| AppError::Internal(format!("read multipart field: {e}")))?;
+        file_bytes = Some(bytes.to_vec());
+        break; // only handle the first file field
+    }
+
+    let bytes = file_bytes.ok_or_else(|| AppError::BadRequest("no file in request".into()))?;
+
+    rust_ssh_terminal::files::upload_file(&creds, &remote_path, &bytes).await?;
+    Ok(ok_empty())
 }
 
 // ── Docker handlers ──────────────────────────────────────────────────────────

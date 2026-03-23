@@ -14,6 +14,7 @@ import "@xterm/xterm/css/xterm.css";
 import type { Terminal } from "@xterm/xterm";
 import {
   Container,
+  CopyPlus,
   FolderTree,
   HardDrive,
   ListTree,
@@ -24,6 +25,7 @@ import { useWindowManager } from "../../contexts/WindowManagerContext";
 import { api } from "../../generated/rust-api";
 import type { SshHostStats } from "../../generated/rust-types/SshHostStats";
 import SshDockerPanel from "./SshDockerPanel";
+import type { UploadItem, UploadQueue } from "./SshFileTree";
 import SshFileTree from "./SshFileTree";
 import SshNetworkPanel from "./SshNetworkPanel";
 import SshProcessList from "./SshProcessList";
@@ -40,7 +42,7 @@ interface SshTerminalWindowProps {
 type ConnectionStatus = "connecting" | "connected" | "disconnected" | "error";
 type BottomTab = "files" | "processes" | "storage" | "network" | "docker";
 
-function getSshWsUrl(terminalId: string): string {
+function getSshWsUrl(terminalId: string, sessionId: string): string {
   const rustServer =
     (typeof window !== "undefined" &&
       (import.meta.env as Record<string, string>).RUST_SERVER) ||
@@ -52,18 +54,41 @@ function getSshWsUrl(terminalId: string): string {
 
   const wsBase = base.replace(/^http:/, "ws:").replace(/^https:/, "wss:");
 
-  return `${wsBase}/api/ssh-terminals/ws?id=${encodeURIComponent(terminalId)}`;
+  return `${wsBase}/api/ssh-terminals/ws?id=${encodeURIComponent(terminalId)}&session_id=${encodeURIComponent(sessionId)}`;
 }
 
 export default function SshTerminalWindow({
   terminalId,
   windowId,
 }: SshTerminalWindowProps) {
-  const { windows, updateMetadata } = useWindowManager();
+  const { windows, openWindow, updateMetadata } = useWindowManager();
   const win = windows.find((w) => w.id === windowId);
   const savedPanelHeight = (win?.metadata.sshPanelHeight as number) || 192;
   const savedPanelCollapsed =
     (win?.metadata.sshPanelCollapsed as boolean) ?? false;
+
+  // ── Session ID: stable UUID that survives page refreshes via metadata ──
+  // Use the one already persisted in metadata, or generate a new one on first open.
+  const sessionIdRef = useRef<string>(
+    (win?.metadata.sshSessionId as string | undefined) || crypto.randomUUID(),
+  );
+  // Persist once on first render if it wasn't already in metadata.
+  const sessionIdPersisted = useRef(false);
+  if (!sessionIdPersisted.current && win) {
+    sessionIdPersisted.current = true;
+    if (!win.metadata.sshSessionId) {
+      updateMetadata(windowId, { sshSessionId: sessionIdRef.current });
+    }
+  }
+
+  // ── Initial CWD: send a `cd` command once after first connect ──
+  // Set from metadata when duplicating a session so the new shell lands in the
+  // same directory the file browser was showing in the source window.
+  const initialCwdRef = useRef<string | null>(
+    (win?.metadata.sshInitialCwd as string | undefined) ?? null,
+  );
+  // Track the file-browser's current directory so Duplicate can carry it over.
+  const fileBrowserPathRef = useRef<string>("/");
 
   const containerRef = useRef<HTMLDivElement>(null);
   const termRef = useRef<Terminal | null>(null);
@@ -73,6 +98,100 @@ export default function SshTerminalWindow({
   const initFnRef = useRef<(() => void) | null>(null);
   const [bottomTab, setBottomTab] = useState<BottomTab>("files");
   const [panelCollapsed, setPanelCollapsed] = useState(savedPanelCollapsed);
+
+  // ── Upload queue ──
+  const [uploadQueue, setUploadQueue] = useState<UploadQueue>([]);
+
+  const handleUploadFiles = useCallback(
+    (targetDir: string, files: File[]) => {
+      // Enqueue all selected files
+      const newItems: UploadItem[] = files.map((f) => ({
+        id: crypto.randomUUID(),
+        filename: f.name,
+        size: f.size,
+        loaded: 0,
+        status: "pending",
+      }));
+      setUploadQueue((prev) => [...prev, ...newItems]);
+
+      // Upload each file sequentially (not in parallel to avoid server overload)
+      const uploadOne = async (item: UploadItem, file: File) => {
+        // Mark as uploading
+        setUploadQueue((prev) =>
+          prev.map((u) =>
+            u.id === item.id ? { ...u, status: "uploading" } : u,
+          ),
+        );
+
+        try {
+          const url = api.sshTerminal.uploadUrl({
+            id: terminalId,
+            path: targetDir,
+            filename: file.name,
+          });
+
+          await new Promise<void>((resolve, reject) => {
+            const xhr = new XMLHttpRequest();
+            xhr.open("POST", url);
+            xhr.withCredentials = true;
+
+            xhr.upload.onprogress = (e) => {
+              if (e.lengthComputable) {
+                setUploadQueue((prev) =>
+                  prev.map((u) =>
+                    u.id === item.id ? { ...u, loaded: e.loaded } : u,
+                  ),
+                );
+              }
+            };
+
+            xhr.onload = () => {
+              if (xhr.status >= 200 && xhr.status < 300) {
+                resolve();
+              } else {
+                reject(new Error(`HTTP ${xhr.status}`));
+              }
+            };
+
+            xhr.onerror = () => reject(new Error("network error"));
+
+            const formData = new FormData();
+            formData.append("file", file);
+            xhr.send(formData);
+          });
+
+          setUploadQueue((prev) =>
+            prev.map((u) =>
+              u.id === item.id ? { ...u, status: "done", loaded: u.size } : u,
+            ),
+          );
+        } catch (err) {
+          setUploadQueue((prev) =>
+            prev.map((u) =>
+              u.id === item.id
+                ? {
+                    ...u,
+                    status: "error",
+                    error: err instanceof Error ? err.message : "上传失败",
+                  }
+                : u,
+            ),
+          );
+        }
+      };
+
+      // Run all uploads in parallel (XHR-based, non-blocking)
+      for (let i = 0; i < newItems.length; i++) {
+        uploadOne(newItems[i], files[i]);
+      }
+    },
+    [terminalId],
+  );
+
+  /** Count of active (non-finished) uploads for the badge. */
+  const activeUploadCount = uploadQueue.filter(
+    (u) => u.status === "pending" || u.status === "uploading",
+  ).length;
 
   // ── Resizable bottom panel ──
   const [panelHeight, setPanelHeight] = useState(savedPanelHeight);
@@ -174,6 +293,25 @@ export default function SshTerminalWindow({
     };
   }, [terminalId, status]);
 
+  const handleDuplicate = useCallback(() => {
+    // Open a fresh, independent session that starts in the file browser's
+    // current directory (auto-cd on connect).
+    openWindow({
+      type: "terminal",
+      title: win?.title || terminalId,
+      libraryId: win?.libraryId,
+      sourceType: win?.sourceType,
+      sourceId: win?.sourceId,
+      metadata: {
+        sshTerminalId: terminalId,
+        sshHost: win?.metadata.sshHost as string | undefined,
+        sshFileSystemId: win?.metadata.sshFileSystemId as string | undefined,
+        sshSessionId: crypto.randomUUID(),
+        sshInitialCwd: fileBrowserPathRef.current,
+      },
+    });
+  }, [openWindow, terminalId, win]);
+
   const handleReconnect = useCallback(() => {
     if (wsRef.current) {
       wsRef.current.close();
@@ -257,10 +395,30 @@ export default function SshTerminalWindow({
         }
       });
 
+      // Ctrl+C (copy when selected) / Ctrl+V (paste from clipboard)
+      term.attachCustomKeyEventHandler((event: KeyboardEvent) => {
+        if (event.type !== "keydown" || !event.ctrlKey || event.shiftKey)
+          return true;
+        if (event.key === "c" && term.hasSelection()) {
+          navigator.clipboard.writeText(term.getSelection());
+          term.clearSelection();
+          return false;
+        }
+        if (event.key === "v") {
+          navigator.clipboard.readText().then((text) => {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+              ws.send(new TextEncoder().encode(text));
+            }
+          });
+          return false;
+        }
+        return true;
+      });
+
       termRef.current = term;
       fitAddonRef.current = fitAddon;
 
-      const wsUrl = getSshWsUrl(terminalId);
+      const wsUrl = getSshWsUrl(terminalId, sessionIdRef.current);
       ws = new WebSocket(wsUrl);
       ws.binaryType = "arraybuffer";
       wsRef.current = ws;
@@ -269,6 +427,17 @@ export default function SshTerminalWindow({
         if (disposed) return;
         setStatus("connected");
         sendResize(ws!, term.cols, term.rows);
+        // If duplicated from another window, navigate to its directory once.
+        const cwd = initialCwdRef.current;
+        if (cwd && cwd !== "/") {
+          initialCwdRef.current = null; // only send once (not on reconnect)
+          setTimeout(() => {
+            if (!disposed && ws!.readyState === WebSocket.OPEN) {
+              const escaped = `'${cwd.replace(/'/g, "'\\''")}' `;
+              ws!.send(new TextEncoder().encode(`cd ${escaped}\n`));
+            }
+          }, 400);
+        }
         term.focus();
       };
 
@@ -417,15 +586,25 @@ export default function SshTerminalWindow({
             </>
           )}
         </div>
-        {(status === "disconnected" || status === "error") && (
+        <div className="flex items-center gap-2">
+          {(status === "disconnected" || status === "error") && (
+            <button
+              type="button"
+              onClick={handleReconnect}
+              className="text-xs text-emerald-400 hover:text-emerald-300 transition-colors"
+            >
+              重新连接
+            </button>
+          )}
           <button
             type="button"
-            onClick={handleReconnect}
-            className="text-xs text-emerald-400 hover:text-emerald-300 transition-colors"
+            onClick={handleDuplicate}
+            title="复制会话"
+            className="flex items-center justify-center h-5 w-5 rounded text-zinc-500 hover:text-zinc-200 hover:bg-zinc-700/60 transition-colors"
           >
-            重新连接
+            <CopyPlus className="h-3.5 w-3.5" />
           </button>
-        )}
+        </div>
       </div>
 
       {/* ── Terminal area ── */}
@@ -464,6 +643,7 @@ export default function SshTerminalWindow({
             }}
             icon={<FolderTree className="h-3 w-3" />}
             label="文件"
+            badge={activeUploadCount > 0 ? activeUploadCount : undefined}
           />
           <TabButton
             active={bottomTab === "processes"}
@@ -513,7 +693,16 @@ export default function SshTerminalWindow({
         {!panelCollapsed && (
           <div className="flex-1 overflow-hidden">
             {bottomTab === "files" ? (
-              <SshFileTree terminalId={terminalId} connected={connected} />
+              <SshFileTree
+                terminalId={terminalId}
+                connected={connected}
+                uploadQueue={uploadQueue}
+                onUploadFiles={handleUploadFiles}
+                connectionLabel={win?.title}
+                onPathChange={(p) => {
+                  fileBrowserPathRef.current = p;
+                }}
+              />
             ) : bottomTab === "processes" ? (
               <SshProcessList terminalId={terminalId} connected={connected} />
             ) : bottomTab === "docker" ? (
@@ -538,18 +727,20 @@ function TabButton({
   onClick,
   icon,
   label,
+  badge,
 }: {
   active: boolean;
   collapsed: boolean;
   onClick: (e: React.MouseEvent) => void;
   icon: React.ReactNode;
   label: string;
+  badge?: number;
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className={`flex items-center gap-1 px-3 py-1 text-xs transition-colors cursor-pointer ${
+      className={`relative flex items-center gap-1 px-3 py-1 text-xs transition-colors cursor-pointer ${
         active && !collapsed
           ? "text-[var(--accent-text)] border-b-2 border-[var(--accent)] -mb-px"
           : "text-zinc-500 hover:text-zinc-300"
@@ -557,6 +748,11 @@ function TabButton({
     >
       {icon}
       {label}
+      {badge != null && badge > 0 && (
+        <span className="ml-0.5 inline-flex items-center justify-center min-w-[14px] h-3.5 px-0.5 rounded-full bg-blue-500 text-white text-[9px] font-bold leading-none">
+          {badge > 99 ? "99+" : badge}
+        </span>
+      )}
     </button>
   );
 }

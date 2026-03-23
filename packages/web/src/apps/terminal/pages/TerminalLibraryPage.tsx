@@ -66,8 +66,15 @@ export default function TerminalLibraryPage() {
   );
 
   const handleDelete = useCallback(
-    (id: string) => {
-      deleteMutation.mutate(id);
+    (terminal: SshTerminalOutput) => {
+      Modal.confirm({
+        title: "删除终端",
+        content: `确定要删除终端「${terminal.name}」吗？此操作不可撤销。`,
+        okText: "删除",
+        okButtonProps: { danger: true },
+        cancelText: "取消",
+        onOk: () => deleteMutation.mutateAsync(terminal.id),
+      });
     },
     [deleteMutation],
   );
@@ -76,7 +83,7 @@ export default function TerminalLibraryPage() {
     (terminal: SshTerminalOutput) => {
       openWindow({
         type: "terminal",
-        title: `${terminal.name} (${terminal.host})`,
+        title: `${terminal.username}@${terminal.host}`,
         libraryId,
         sourceType: "ssh_terminal",
         sourceId: terminal.id,
@@ -84,6 +91,7 @@ export default function TerminalLibraryPage() {
           sshTerminalId: terminal.id,
           sshHost: terminal.host,
           sshFileSystemId: terminal.fileSystemId,
+          sshSessionId: crypto.randomUUID(),
         },
       });
     },
@@ -102,10 +110,10 @@ export default function TerminalLibraryPage() {
   const terminals = terminalsQuery.data ?? [];
 
   return (
-    <div className="h-full flex flex-col p-4 gap-4">
+    <div className="h-full flex flex-col p-4 gap-4 rounded-xl bg-white/50 dark:bg-white/[0.03] backdrop-blur-sm">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <h1 className="text-lg font-semibold text-zinc-100">
+        <h1 className="text-lg font-semibold text-neutral-900 dark:text-neutral-100">
           {library?.name ?? "Terminal"}
         </h1>
         <Button
@@ -132,25 +140,30 @@ export default function TerminalLibraryPage() {
             // biome-ignore lint/a11y/noStaticElementInteractions: double-click to open terminal
             <div
               key={terminal.id}
-              className="group relative rounded-xl border border-zinc-700/50 bg-zinc-800/50 backdrop-blur-sm p-4 cursor-pointer transition-all hover:border-zinc-600 hover:bg-zinc-800/80"
+              className="group relative rounded-xl border border-black/[0.06] bg-white/60 backdrop-blur-sm p-4 cursor-pointer transition-all hover:border-black/[0.12] hover:bg-white/80 dark:border-white/[0.08] dark:bg-white/[0.06] dark:hover:border-white/[0.15] dark:hover:bg-white/[0.1]"
               onDoubleClick={() => handleOpenTerminal(terminal)}
             >
               <div className="flex items-start gap-3">
-                <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-emerald-500/10 flex items-center justify-center">
-                  <Monitor className="h-5 w-5 text-emerald-400" />
+                <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-emerald-500/10 dark:bg-emerald-500/15 flex items-center justify-center">
+                  <Monitor className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <h3 className="text-sm font-medium text-zinc-200 truncate">
+                  <h3 className="text-sm font-medium text-neutral-900 dark:text-neutral-200 truncate">
                     {terminal.name}
                   </h3>
-                  <p className="text-xs text-zinc-500 mt-0.5 truncate">
+                  <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5 truncate">
                     {terminal.username}@{terminal.host}:{terminal.port}
                   </p>
-                  <p className="text-xs text-zinc-600 mt-0.5">
+                  <p className="text-xs text-neutral-400 dark:text-neutral-500 mt-0.5">
                     {terminal.authMethod === "private_key"
                       ? "密钥认证"
                       : "密码认证"}
                   </p>
+                  {terminal.notes && (
+                    <p className="text-xs text-neutral-400 dark:text-neutral-500 mt-1 line-clamp-2">
+                      {terminal.notes}
+                    </p>
+                  )}
                 </div>
               </div>
 
@@ -159,7 +172,7 @@ export default function TerminalLibraryPage() {
                 <button
                   type="button"
                   title="连接"
-                  className="p-1.5 rounded-md bg-emerald-600/70 hover:bg-emerald-500 text-zinc-200 transition-colors"
+                  className="p-1.5 rounded-md bg-emerald-500/80 hover:bg-emerald-500 text-white transition-colors"
                   onClick={(e) => {
                     e.stopPropagation();
                     handleOpenTerminal(terminal);
@@ -170,7 +183,7 @@ export default function TerminalLibraryPage() {
                 <button
                   type="button"
                   title="编辑"
-                  className="p-1.5 rounded-md bg-zinc-700/70 hover:bg-zinc-600 text-zinc-400 hover:text-zinc-200 transition-colors"
+                  className="p-1.5 rounded-md bg-black/10 hover:bg-black/20 text-neutral-500 hover:text-neutral-700 dark:bg-white/10 dark:hover:bg-white/20 dark:text-neutral-400 dark:hover:text-neutral-200 transition-colors"
                   onClick={(e) => {
                     e.stopPropagation();
                     setEditingTerminal(terminal);
@@ -182,10 +195,10 @@ export default function TerminalLibraryPage() {
                 <button
                   type="button"
                   title="删除"
-                  className="p-1.5 rounded-md bg-zinc-700/70 hover:bg-red-600/80 text-zinc-400 hover:text-zinc-200 transition-colors"
+                  className="p-1.5 rounded-md bg-black/10 hover:bg-red-500/80 text-neutral-500 hover:text-white dark:bg-white/10 dark:hover:bg-red-600/80 dark:text-neutral-400 dark:hover:text-white transition-colors"
                   onClick={(e) => {
                     e.stopPropagation();
-                    handleDelete(terminal.id);
+                    handleDelete(terminal);
                   }}
                 >
                   <Trash2 className="h-3.5 w-3.5" />
@@ -205,11 +218,16 @@ export default function TerminalLibraryPage() {
         }}
         title={editingTerminal ? "编辑终端" : "新建终端"}
         width={480}
+        footer={null}
       >
         <SshTerminalForm
           libraryId={libraryId!}
           terminal={editingTerminal}
           onSubmit={handleFormSubmit}
+          onCancel={() => {
+            setFormOpen(false);
+            setEditingTerminal(null);
+          }}
           isLoading={createMutation.isPending || updateMutation.isPending}
         />
       </Modal>

@@ -10,6 +10,7 @@ interface SshTerminalFormProps {
   libraryId: string;
   terminal: SshTerminalOutput | null;
   onSubmit: (data: CreateSshTerminalInput | UpdateSshTerminalInput) => void;
+  onCancel?: () => void;
   isLoading: boolean;
 }
 
@@ -22,6 +23,7 @@ export default function SshTerminalForm({
   libraryId,
   terminal,
   onSubmit,
+  onCancel,
   isLoading,
 }: SshTerminalFormProps) {
   const [name, setName] = useState(terminal?.name ?? "");
@@ -37,6 +39,7 @@ export default function SshTerminalForm({
   const [startupCommand, setStartupCommand] = useState(
     terminal?.startupCommand ?? "",
   );
+  const [notes, setNotes] = useState(terminal?.notes ?? "");
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
@@ -49,6 +52,7 @@ export default function SshTerminalForm({
         username: username || undefined,
         authMethod,
         startupCommand: startupCommand || undefined,
+        notes: notes || undefined,
       };
       if (password) data.password = password;
       if (privateKey) data.privateKey = privateKey;
@@ -63,6 +67,7 @@ export default function SshTerminalForm({
         username,
         authMethod,
         startupCommand: startupCommand || undefined,
+        notes: notes || undefined,
       };
       if (authMethod === "password") {
         data.password = password;
@@ -175,8 +180,24 @@ export default function SshTerminalForm({
         />
       </div>
 
+      <div className="flex flex-col gap-1.5">
+        <span className="text-xs text-zinc-400">备注（可选）</span>
+        <textarea
+          className="w-full rounded-lg border border-[var(--glass-border)] bg-transparent px-3 py-2 text-sm text-neutral-900 dark:text-neutral-200 placeholder:text-neutral-400 dark:placeholder:text-neutral-600 focus:border-[var(--accent)] focus:outline-none resize-y"
+          rows={2}
+          value={notes}
+          onChange={(e) => setNotes(e.target.value)}
+          placeholder="备注信息"
+        />
+      </div>
+
       <div className="flex justify-end gap-2 pt-2">
-        <Button type="submit" variant="primary" disabled={isLoading}>
+        {onCancel && (
+          <Button htmlType="button" onClick={onCancel}>
+            取消
+          </Button>
+        )}
+        <Button htmlType="submit" variant="primary" disabled={isLoading}>
           {isLoading ? "保存中..." : terminal ? "更新" : "创建"}
         </Button>
       </div>

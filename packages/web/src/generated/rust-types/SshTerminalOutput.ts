@@ -12,4 +12,4 @@ hasPassword: boolean,
 /**
  * Whether a private key is set
  */
-hasPrivateKey: boolean, startupCommand: string | null, sortOrder: number, isEnabled: boolean, createdAt: string, updatedAt: string, };
+hasPrivateKey: boolean, startupCommand: string | null, notes: string | null, sortOrder: number, isEnabled: boolean, createdAt: string, updatedAt: string, };

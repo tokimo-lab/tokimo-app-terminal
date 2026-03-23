@@ -31,6 +31,8 @@ pub struct Model {
     pub created_at: DateTimeWithTimeZone,
     pub updated_at: DateTimeWithTimeZone,
     pub file_system_id: Option<Uuid>,
+    #[sea_orm(column_type = "Text", nullable)]
+    pub notes: Option<String>,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

@@ -60,6 +60,7 @@ impl SshTerminalRepo {
         private_key: Option<&str>,
         passphrase: Option<&str>,
         startup_command: Option<&str>,
+        notes: Option<&str>,
         sort_order: i32,
     ) -> Result<SshTerminalOutput, AppError> {
         let now = chrono::Utc::now().fixed_offset();
@@ -76,6 +77,7 @@ impl SshTerminalRepo {
             private_key: Set(private_key.map(|s| s.to_string())),
             passphrase: Set(passphrase.map(|s| s.to_string())),
             startup_command: Set(startup_command.map(|s| s.to_string())),
+            notes: Set(notes.map(|s| s.to_string())),
             sort_order: Set(sort_order),
             is_enabled: Set(true),
             created_at: Set(now),
@@ -98,6 +100,7 @@ impl SshTerminalRepo {
         private_key: Option<Option<&str>>,
         passphrase: Option<Option<&str>>,
         startup_command: Option<Option<&str>>,
+        notes: Option<Option<&str>>,
         sort_order: Option<i32>,
         is_enabled: Option<bool>,
     ) -> Result<SshTerminalOutput, AppError> {
@@ -136,6 +139,9 @@ impl SshTerminalRepo {
         }
         if let Some(v) = startup_command {
             am.startup_command = Set(v.map(|s| s.to_string()));
+        }
+        if let Some(v) = notes {
+            am.notes = Set(v.map(|s| s.to_string()));
         }
         if let Some(v) = sort_order {
             am.sort_order = Set(v);

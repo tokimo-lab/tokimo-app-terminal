@@ -63,6 +63,10 @@ pub fn build_ssh_terminal_routes() -> Router<Arc<AppState>> {
             post(ssh_terminal::ssh_terminal_rename),
         )
         .route(
+            "/api/ssh-terminals/{id}/mv",
+            post(ssh_terminal::ssh_terminal_mv),
+        )
+        .route(
             "/api/ssh-terminals/{id}/read-file",
             post(ssh_terminal::ssh_terminal_read_file),
         )
@@ -73,6 +77,10 @@ pub fn build_ssh_terminal_routes() -> Router<Arc<AppState>> {
         .route(
             "/api/ssh-terminals/{id}/download",
             get(ssh_terminal::ssh_terminal_download),
+        )
+        .route(
+            "/api/ssh-terminals/{id}/upload",
+            post(ssh_terminal::ssh_terminal_upload),
         )
         .route(
             "/api/ssh-terminals/{id}/docker/ps",

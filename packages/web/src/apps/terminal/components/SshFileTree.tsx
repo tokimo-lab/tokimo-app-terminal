@@ -14,6 +14,7 @@ import {
   useContextMenu,
 } from "@tokiomo/components";
 import {
+  CheckCircle,
   Download,
   FilePlus,
   FolderOpen,
@@ -21,11 +22,30 @@ import {
   Pencil,
   RefreshCw,
   Trash2,
+  Upload,
+  XCircle,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useWindowManager } from "../../contexts/WindowManagerContext";
 import { api } from "../../generated/rust-api";
+import { formatBytes } from "./ssh-terminal-utils";
+
+// ── Upload queue types ────────────────────────────────────────────────────────
+
+export type UploadStatus = "pending" | "uploading" | "done" | "error";
+
+export interface UploadItem {
+  id: string;
+  filename: string;
+  size: number;
+  loaded: number;
+  status: UploadStatus;
+  error?: string;
+}
+
+export type UploadQueue = UploadItem[];
+
 import type { SshFileEntry } from "../../generated/rust-types/SshFileEntry";
 import { FileBreadcrumb } from "../file-manager/FileBreadcrumb";
 import { FileGrid } from "../file-manager/FileGrid";
@@ -39,22 +59,32 @@ import type {
 } from "../file-manager/types";
 import { sortNodes } from "../file-manager/types";
 
-interface SshFileTreeProps {
+export interface SshFileTreeProps {
   terminalId: string;
   connected: boolean;
+  /** Upload queue driven from outside (lifted up to SshTerminalWindow). */
+  uploadQueue: UploadQueue;
+  onUploadFiles: (targetDir: string, files: File[]) => void;
+  /** Called whenever the user navigates to a new directory. */
+  onPathChange?: (path: string) => void;
+  /** Label shown next to the SSH badge, e.g. "root@10.0.0.1" */
+  connectionLabel?: string;
 }
 
 /** Convert SSH ls entries into FileNode[] that FileGrid understands. */
 function toFileNodes(entries: SshFileEntry[], basePath: string): FileNode[] {
   return entries.map((e) => {
     const fullPath = basePath === "/" ? `/${e.name}` : `${basePath}/${e.name}`;
+    const owner =
+      e.owner || e.group ? `${e.owner ?? ""}:${e.group ?? ""}` : null;
     return {
       name: e.name,
       path: fullPath,
       isDirectory: e.isDir,
       size: e.size || null,
-      modifiedAt: null,
-      mode: null,
+      modifiedAt: e.modifiedAt ?? null,
+      mode: e.mode ?? null,
+      owner,
     };
   });
 }
@@ -69,8 +99,45 @@ function getParentPath(p: string): string {
   return p.replace(/\/[^/]+$/, "") || "/";
 }
 
-const EMPTY_SET = new Set<string>();
-const noopDrag = (_n: FileNode, _e: React.DragEvent) => {};
+const IMAGE_EXTS = new Set([
+  "jpg",
+  "jpeg",
+  "png",
+  "gif",
+  "webp",
+  "svg",
+  "bmp",
+  "ico",
+  "tiff",
+  "tif",
+  "avif",
+  "heic",
+  "heif",
+]);
+const VIDEO_EXTS = new Set([
+  "mp4",
+  "mkv",
+  "avi",
+  "mov",
+  "wmv",
+  "flv",
+  "webm",
+  "m4v",
+  "ts",
+]);
+const AUDIO_EXTS = new Set(["mp3", "flac", "aac", "ogg", "wav", "m4a", "opus"]);
+
+/** Determine the window type for a file based on its extension. */
+function getFileWindowType(
+  name: string,
+): "image" | "video" | "audio" | "pdf" | "text" {
+  const ext = (name.split(".").pop() ?? "").toLowerCase();
+  if (IMAGE_EXTS.has(ext)) return "image";
+  if (VIDEO_EXTS.has(ext)) return "video";
+  if (AUDIO_EXTS.has(ext)) return "audio";
+  if (ext === "pdf") return "pdf";
+  return "text";
+}
 
 /** Build the download URL for an SSH file. */
 function buildDownloadUrl(terminalId: string, filePath: string): string {
@@ -84,12 +151,23 @@ function buildDownloadUrl(terminalId: string, filePath: string): string {
 export default function SshFileTree({
   terminalId,
   connected,
+  uploadQueue,
+  onUploadFiles,
+  onPathChange,
+  connectionLabel,
 }: SshFileTreeProps) {
   const { t } = useTranslation();
   const [currentPath, setCurrentPath] = useState("/");
   const [rawNodes, setRawNodes] = useState<FileNode[]>([]);
   const [loading, setLoading] = useState(false);
   const [selectedPaths, setSelectedPaths] = useState<Set<string>>(new Set());
+
+  // Drag-and-drop state
+  const [draggingPaths, setDraggingPaths] = useState<Set<string>>(new Set());
+
+  // Hidden file input ref for upload
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const uploadTargetRef = useRef<string>("/");
 
   // View state
   const [viewMode, setViewMode] = useState<ViewMode>("list");
@@ -136,6 +214,22 @@ export default function SshFileTree({
     });
   }, [currentPath, fetchDir]);
 
+  const mvMut = api.sshTerminal.mv.useMutation({ onSuccess: refresh });
+
+  // Auto-refresh when uploads finish
+  const refreshedUploadIds = useRef(new Set<string>());
+  useEffect(() => {
+    const newlyDone = uploadQueue.filter(
+      (u) => u.status === "done" && !refreshedUploadIds.current.has(u.id),
+    );
+    if (newlyDone.length > 0) {
+      for (const item of newlyDone) {
+        refreshedUploadIds.current.add(item.id);
+      }
+      refresh();
+    }
+  }, [uploadQueue, refresh]);
+
   // Fetch directory on connect / path change
   useEffect(() => {
     if (!connected) return;
@@ -159,6 +253,10 @@ export default function SshFileTree({
       : rawNodes.filter((n) => !n.name.startsWith("."));
     return sortNodes(filtered, sortBy, sortDir);
   }, [rawNodes, showHidden, sortBy, sortDir]);
+
+  useEffect(() => {
+    onPathChange?.(currentPath);
+  }, [currentPath, onPathChange]);
 
   const navigateTo = useCallback((path: string) => {
     setCurrentPath(path);
@@ -201,6 +299,41 @@ export default function SshFileTree({
     refresh();
   }, [terminalId, selectedPaths, refresh]);
 
+  // ── Drag-and-drop handlers ──
+
+  const handleDragStart = useCallback(
+    (node: FileNode, _e: React.DragEvent) => {
+      if (!selectedPaths.has(node.path)) {
+        setSelectedPaths(new Set([node.path]));
+        setDraggingPaths(new Set([node.path]));
+      } else {
+        setDraggingPaths(new Set(selectedPaths));
+      }
+    },
+    [selectedPaths],
+  );
+
+  const handleDragEnd = useCallback(() => {
+    setDraggingPaths(new Set());
+  }, []);
+
+  const handleDropToFolder = useCallback(
+    (targetNode: FileNode, _e: React.DragEvent) => {
+      if (!targetNode.isDirectory) return;
+      for (const srcPath of draggingPaths) {
+        if (srcPath !== targetNode.path) {
+          mvMut.mutate({
+            id: terminalId,
+            from: srcPath,
+            toDir: targetNode.path,
+          });
+        }
+      }
+      setDraggingPaths(new Set());
+    },
+    [draggingPaths, terminalId, mvMut],
+  );
+
   const handleDownload = useCallback(
     (path: string) => {
       const a = document.createElement("a");
@@ -217,9 +350,10 @@ export default function SshFileTree({
         navigateTo(node.path);
         return;
       }
-      // Open file in a WindowManager window with Monaco editor
+      // Open file in a WindowManager window; route binary types to the right viewer
+      const fileType = getFileWindowType(node.name);
       windowManager.openWindow({
-        type: "text",
+        type: fileType,
         title: node.name,
         metadata: {
           filePath: node.path,
@@ -315,6 +449,22 @@ export default function SshFileTree({
     [selectedPaths, navigateTo, handleOpenFile, handleDownload, openCtxMenu, t],
   );
 
+  const triggerUpload = useCallback((targetDir: string) => {
+    uploadTargetRef.current = targetDir;
+    fileInputRef.current?.click();
+  }, []);
+
+  const handleFileInputChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const files = Array.from(e.target.files ?? []);
+      if (files.length === 0) return;
+      onUploadFiles(uploadTargetRef.current, files);
+      // reset so the same file can be re-selected
+      e.target.value = "";
+    },
+    [onUploadFiles],
+  );
+
   const handleEmptyContextMenu = useCallback(
     (e: React.MouseEvent) => {
       e.preventDefault();
@@ -326,6 +476,13 @@ export default function SshFileTree({
           icon: <FolderPlus size={13} />,
           onClick: () => setShowNewFolder(true),
         },
+        {
+          key: "upload",
+          label: "上传文件",
+          icon: <Upload size={13} />,
+          onClick: () => triggerUpload(currentPath),
+          disabled: !connected,
+        },
         { key: "d1", type: "divider" },
         {
           key: "refresh",
@@ -336,7 +493,7 @@ export default function SshFileTree({
       ];
       openCtxMenu(e, items);
     },
-    [openCtxMenu, refresh, t],
+    [openCtxMenu, refresh, t, triggerUpload, currentPath, connected],
   );
 
   return (
@@ -347,6 +504,7 @@ export default function SshFileTree({
           currentPath={currentPath}
           onNavigate={navigateTo}
           sourceType="ssh"
+          sourceLabel={connectionLabel}
         />
       </div>
 
@@ -390,10 +548,10 @@ export default function SshFileTree({
             onRenameSubmit={(_path: string, _name: string) => {}}
             onRenameCancel={() => {}}
             onClearSelection={clearSelection}
-            onDragStart={noopDrag}
-            onDragEnd={() => {}}
-            onDropToFolder={noopDrag}
-            draggingPaths={EMPTY_SET}
+            onDragStart={handleDragStart}
+            onDragEnd={handleDragEnd}
+            onDropToFolder={handleDropToFolder}
+            draggingPaths={draggingPaths}
           />
         )}
       </div>
@@ -406,6 +564,72 @@ export default function SshFileTree({
             ` · ${selectedPaths.size} ${t("fileManager.selected")}`}
         </span>
       </div>
+
+      {/* Upload progress panel — shown when there are uploads */}
+      {uploadQueue.length > 0 && (
+        <div className="shrink-0 border-t border-zinc-800 bg-zinc-900/60 max-h-36 overflow-y-auto">
+          <div className="px-2 py-1 text-[10px] font-semibold text-zinc-500 uppercase tracking-wider">
+            上传队列
+          </div>
+          {uploadQueue.map((item) => (
+            <div key={item.id} className="flex items-center gap-2 px-2 pb-1.5">
+              {/* Status icon */}
+              <span className="shrink-0">
+                {item.status === "done" ? (
+                  <CheckCircle size={12} className="text-emerald-400" />
+                ) : item.status === "error" ? (
+                  <XCircle size={12} className="text-red-400" />
+                ) : (
+                  <Upload size={12} className="text-blue-400 animate-pulse" />
+                )}
+              </span>
+
+              <div className="flex-1 min-w-0">
+                {/* File name + size */}
+                <div className="flex items-center justify-between gap-1 text-[10px]">
+                  <span
+                    className="truncate text-zinc-300"
+                    title={item.filename}
+                  >
+                    {item.filename}
+                  </span>
+                  <span className="shrink-0 text-zinc-500">
+                    {item.status === "uploading"
+                      ? `${formatBytes(item.loaded)} / ${formatBytes(item.size)}`
+                      : formatBytes(item.size)}
+                  </span>
+                </div>
+                {/* Progress bar */}
+                {(item.status === "uploading" || item.status === "pending") && (
+                  <div className="mt-0.5 h-1 rounded-full bg-zinc-700 overflow-hidden">
+                    <div
+                      className="h-full rounded-full bg-blue-500 transition-all duration-200"
+                      style={{
+                        width: `${item.size > 0 ? Math.round((item.loaded / item.size) * 100) : 0}%`,
+                      }}
+                    />
+                  </div>
+                )}
+                {item.status === "error" && item.error && (
+                  <div className="text-[9px] text-red-400 truncate">
+                    {item.error}
+                  </div>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Hidden file input */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        multiple
+        className="hidden"
+        onChange={handleFileInputChange}
+        tabIndex={-1}
+      />
 
       {/* Context menu portal */}
       {contextMenu}
