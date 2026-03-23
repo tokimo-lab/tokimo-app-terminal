@@ -62,6 +62,8 @@ export default function SshTerminalWindow({
   const { windows, updateMetadata } = useWindowManager();
   const win = windows.find((w) => w.id === windowId);
   const savedPanelHeight = (win?.metadata.sshPanelHeight as number) || 192;
+  const savedPanelCollapsed =
+    (win?.metadata.sshPanelCollapsed as boolean) ?? false;
 
   const containerRef = useRef<HTMLDivElement>(null);
   const termRef = useRef<Terminal | null>(null);
@@ -70,12 +72,44 @@ export default function SshTerminalWindow({
   const [status, setStatus] = useState<ConnectionStatus>("connecting");
   const initFnRef = useRef<(() => void) | null>(null);
   const [bottomTab, setBottomTab] = useState<BottomTab>("files");
+  const [panelCollapsed, setPanelCollapsed] = useState(savedPanelCollapsed);
 
   // ── Resizable bottom panel ──
   const [panelHeight, setPanelHeight] = useState(savedPanelHeight);
   const panelHeightRef = useRef(panelHeight);
   const draggingRef = useRef(false);
   const wrapperRef = useRef<HTMLDivElement>(null);
+
+  const handleToggleCollapse = useCallback(() => {
+    const newCollapsed = !panelCollapsed;
+    setPanelCollapsed(newCollapsed);
+    updateMetadata(windowId, { sshPanelCollapsed: newCollapsed });
+    requestAnimationFrame(() => {
+      try {
+        fitAddonRef.current?.fit();
+      } catch {
+        // ignore
+      }
+    });
+  }, [panelCollapsed, windowId, updateMetadata]);
+
+  const handleTabButtonClick = useCallback(
+    (tab: BottomTab) => {
+      setBottomTab(tab);
+      if (panelCollapsed) {
+        setPanelCollapsed(false);
+        updateMetadata(windowId, { sshPanelCollapsed: false });
+        requestAnimationFrame(() => {
+          try {
+            fitAddonRef.current?.fit();
+          } catch {
+            // ignore
+          }
+        });
+      }
+    },
+    [panelCollapsed, windowId, updateMetadata],
+  );
 
   const handleDragStart = useCallback(
     (e: React.MouseEvent) => {
@@ -401,65 +435,96 @@ export default function SshTerminalWindow({
       />
 
       {/* ── Drag handle ── */}
-      {/* biome-ignore lint/a11y/noStaticElementInteractions: drag resize handle */}
-      <div
-        className="shrink-0 h-1 cursor-row-resize bg-zinc-800 hover:bg-zinc-600 active:bg-emerald-600 transition-colors"
-        onMouseDown={handleDragStart}
-      />
+      {!panelCollapsed && (
+        // biome-ignore lint/a11y/noStaticElementInteractions: drag resize handle
+        <div
+          className="shrink-0 h-1 cursor-row-resize bg-zinc-800 hover:bg-zinc-600 active:bg-emerald-600 transition-colors"
+          onMouseDown={handleDragStart}
+        />
+      )}
 
       {/* ── Bottom: tabbed panel ── */}
       <div
         className="shrink-0 bg-zinc-900/80 flex flex-col overflow-hidden"
-        style={{ height: panelHeight }}
+        style={panelCollapsed ? undefined : { height: panelHeight }}
       >
-        {/* Tab bar */}
-        <div className="flex items-center shrink-0 border-b border-zinc-800/60">
+        {/* Tab bar — click blank area to collapse/expand */}
+        {/* biome-ignore lint/a11y/noStaticElementInteractions: drag/click area */}
+        {/* biome-ignore lint/a11y/useKeyWithClickEvents: collapse toggle, keyboard not needed */}
+        <div
+          className="flex items-center shrink-0 border-b border-zinc-800/60 cursor-pointer"
+          onClick={handleToggleCollapse}
+        >
           <TabButton
             active={bottomTab === "files"}
-            onClick={() => setBottomTab("files")}
+            collapsed={panelCollapsed}
+            onClick={(e) => {
+              e.stopPropagation();
+              handleTabButtonClick("files");
+            }}
             icon={<FolderTree className="h-3 w-3" />}
             label="文件"
           />
           <TabButton
             active={bottomTab === "processes"}
-            onClick={() => setBottomTab("processes")}
+            collapsed={panelCollapsed}
+            onClick={(e) => {
+              e.stopPropagation();
+              handleTabButtonClick("processes");
+            }}
             icon={<ListTree className="h-3 w-3" />}
             label="进程"
           />
           <TabButton
             active={bottomTab === "storage"}
-            onClick={() => setBottomTab("storage")}
+            collapsed={panelCollapsed}
+            onClick={(e) => {
+              e.stopPropagation();
+              handleTabButtonClick("storage");
+            }}
             icon={<HardDrive className="h-3 w-3" />}
             label="存储"
           />
           <TabButton
             active={bottomTab === "network"}
-            onClick={() => setBottomTab("network")}
+            collapsed={panelCollapsed}
+            onClick={(e) => {
+              e.stopPropagation();
+              handleTabButtonClick("network");
+            }}
             icon={<Network className="h-3 w-3" />}
             label="网络"
           />
           <TabButton
             active={bottomTab === "docker"}
-            onClick={() => setBottomTab("docker")}
+            collapsed={panelCollapsed}
+            onClick={(e) => {
+              e.stopPropagation();
+              handleTabButtonClick("docker");
+            }}
             icon={<Container className="h-3 w-3" />}
             label="Docker"
           />
+          {/* flex-1 spacer makes the rest of the bar clickable */}
+          <div className="flex-1" />
         </div>
 
-        {/* Tab content */}
-        <div className="flex-1 overflow-hidden">
-          {bottomTab === "files" ? (
-            <SshFileTree terminalId={terminalId} connected={connected} />
-          ) : bottomTab === "processes" ? (
-            <SshProcessList terminalId={terminalId} connected={connected} />
-          ) : bottomTab === "docker" ? (
-            <SshDockerPanel terminalId={terminalId} connected={connected} />
-          ) : bottomTab === "network" ? (
-            <SshNetworkPanel terminalId={terminalId} connected={connected} />
-          ) : (
-            <SshStoragePanel terminalId={terminalId} connected={connected} />
-          )}
-        </div>
+        {/* Tab content - hidden when collapsed */}
+        {!panelCollapsed && (
+          <div className="flex-1 overflow-hidden">
+            {bottomTab === "files" ? (
+              <SshFileTree terminalId={terminalId} connected={connected} />
+            ) : bottomTab === "processes" ? (
+              <SshProcessList terminalId={terminalId} connected={connected} />
+            ) : bottomTab === "docker" ? (
+              <SshDockerPanel terminalId={terminalId} connected={connected} />
+            ) : bottomTab === "network" ? (
+              <SshNetworkPanel terminalId={terminalId} connected={connected} />
+            ) : (
+              <SshStoragePanel terminalId={terminalId} connected={connected} />
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -469,12 +534,14 @@ export default function SshTerminalWindow({
 
 function TabButton({
   active,
+  collapsed,
   onClick,
   icon,
   label,
 }: {
   active: boolean;
-  onClick: () => void;
+  collapsed: boolean;
+  onClick: (e: React.MouseEvent) => void;
   icon: React.ReactNode;
   label: string;
 }) {
@@ -482,8 +549,8 @@ function TabButton({
     <button
       type="button"
       onClick={onClick}
-      className={`flex items-center gap-1 px-3 py-1 text-xs transition-colors ${
-        active
+      className={`flex items-center gap-1 px-3 py-1 text-xs transition-colors cursor-pointer ${
+        active && !collapsed
           ? "text-[var(--accent-text)] border-b-2 border-[var(--accent)] -mb-px"
           : "text-zinc-500 hover:text-zinc-300"
       }`}
