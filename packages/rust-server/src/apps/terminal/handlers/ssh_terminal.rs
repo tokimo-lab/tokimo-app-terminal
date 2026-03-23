@@ -658,7 +658,7 @@ pub async fn ssh_terminal_upload(
         let bytes = field
             .bytes()
             .await
-            .map_err(|e| AppError::Internal(format!("read multipart field: {e}")))?;
+            .map_err(|e| AppError::BadRequest(format!("read multipart field: {e}")))?;
         file_bytes = Some(bytes.to_vec());
         break; // only handle the first file field
     }
