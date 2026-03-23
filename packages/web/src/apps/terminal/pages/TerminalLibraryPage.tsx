@@ -83,6 +83,7 @@ export default function TerminalLibraryPage() {
         metadata: {
           sshTerminalId: terminal.id,
           sshHost: terminal.host,
+          sshFileSystemId: terminal.fileSystemId,
         },
       });
     },

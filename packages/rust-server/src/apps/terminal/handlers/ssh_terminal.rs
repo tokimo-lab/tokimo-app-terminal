@@ -530,6 +530,291 @@ async fn ssh_exec_command(
     String::from_utf8(stdout).map_err(|e| AppError::Internal(format!("utf8: {e}")))
 }
 
+/// Like `ssh_exec_command` but returns raw bytes (for binary file downloads).
+async fn ssh_exec_command_bytes(
+    terminal: &crate::db::entities::ssh_terminals::Model,
+    cmd: &str,
+) -> Result<Vec<u8>, AppError> {
+    let config = Arc::new(client::Config {
+        inactivity_timeout: Some(std::time::Duration::from_secs(30)),
+        ..Default::default()
+    });
+    let addr = (terminal.host.as_str(), terminal.port as u16);
+    let mut handle = client::connect(config, addr, ExecSshHandler)
+        .await
+        .map_err(|e| AppError::Internal(format!("SSH connect: {e}")))?;
+    ssh_authenticate(&mut handle, terminal).await?;
+
+    let channel = handle
+        .channel_open_session()
+        .await
+        .map_err(|e| AppError::Internal(format!("channel: {e}")))?;
+    channel
+        .exec(true, cmd)
+        .await
+        .map_err(|e| AppError::Internal(format!("exec: {e}")))?;
+
+    let mut stdout = Vec::new();
+    let (mut read_half, _write_half) = channel.split();
+    while let Some(msg) = read_half.wait().await {
+        match msg {
+            russh::ChannelMsg::Data { ref data } => stdout.extend_from_slice(data),
+            russh::ChannelMsg::Eof | russh::ChannelMsg::Close => break,
+            _ => {}
+        }
+    }
+    Ok(stdout)
+}
+
+/// Open an SSH connection, authenticate, run `cmd`, send `stdin_data`, return stdout.
+async fn ssh_exec_command_with_stdin(
+    terminal: &crate::db::entities::ssh_terminals::Model,
+    cmd: &str,
+    stdin_data: &[u8],
+) -> Result<String, AppError> {
+    let config = Arc::new(client::Config {
+        inactivity_timeout: Some(std::time::Duration::from_secs(30)),
+        ..Default::default()
+    });
+    let addr = (terminal.host.as_str(), terminal.port as u16);
+    let mut handle = client::connect(config, addr, ExecSshHandler)
+        .await
+        .map_err(|e| AppError::Internal(format!("SSH connect: {e}")))?;
+    ssh_authenticate(&mut handle, terminal).await?;
+
+    let channel = handle
+        .channel_open_session()
+        .await
+        .map_err(|e| AppError::Internal(format!("channel: {e}")))?;
+    channel
+        .exec(true, cmd)
+        .await
+        .map_err(|e| AppError::Internal(format!("exec: {e}")))?;
+
+    let (mut read_half, write_half) = channel.split();
+
+    // Send stdin data
+    write_half
+        .data(&stdin_data[..])
+        .await
+        .map_err(|e| AppError::Internal(format!("write stdin: {e}")))?;
+    write_half
+        .eof()
+        .await
+        .map_err(|e| AppError::Internal(format!("eof: {e}")))?;
+
+    let mut stdout = Vec::new();
+    while let Some(msg) = read_half.wait().await {
+        match msg {
+            russh::ChannelMsg::Data { ref data } => stdout.extend_from_slice(data),
+            russh::ChannelMsg::Eof | russh::ChannelMsg::Close => break,
+            _ => {}
+        }
+    }
+    String::from_utf8(stdout).map_err(|e| AppError::Internal(format!("utf8: {e}")))
+}
+
+/// Shared SSH authentication logic.
+async fn ssh_authenticate(
+    handle: &mut client::Handle<ExecSshHandler>,
+    terminal: &crate::db::entities::ssh_terminals::Model,
+) -> Result<(), AppError> {
+    match terminal.auth_method.as_str() {
+        "private_key" => {
+            let key_pem = terminal
+                .private_key
+                .as_deref()
+                .ok_or_else(|| AppError::Internal("no private key".into()))?;
+            let key = russh::keys::decode_secret_key(key_pem, terminal.passphrase.as_deref())
+                .map_err(|e| AppError::Internal(format!("decode key: {e}")))?;
+            let best_hash = handle
+                .best_supported_rsa_hash()
+                .await
+                .ok()
+                .flatten()
+                .flatten();
+            let result = handle
+                .authenticate_publickey(
+                    &terminal.username,
+                    PrivateKeyWithHashAlg::new(Arc::new(key), best_hash),
+                )
+                .await
+                .map_err(|e| AppError::Internal(format!("auth: {e}")))?;
+            if !result.success() {
+                return Err(AppError::Internal("auth failed".into()));
+            }
+        }
+        _ => {
+            let pwd = terminal.password.as_deref().unwrap_or("");
+            let result = handle
+                .authenticate_password(&terminal.username, pwd)
+                .await
+                .map_err(|e| AppError::Internal(format!("auth: {e}")))?;
+            if !result.success() {
+                return Err(AppError::Internal("auth failed".into()));
+            }
+        }
+    }
+    Ok(())
+}
+
+// ── File operation endpoints ─────────────────────────────────────────────────
+
+/// Escape a path for safe shell usage (single-quote wrapping).
+fn shell_escape(s: &str) -> String {
+    s.replace('\'', "'\\''")
+}
+
+#[derive(Debug, Deserialize)]
+pub struct SshFileOpInput {
+    pub path: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SshRenameInput {
+    pub from: String,
+    pub to: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SshWriteFileInput {
+    pub path: String,
+    pub content: String,
+}
+
+#[derive(Debug, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct SshFileContentResponse {
+    pub path: String,
+    pub content: String,
+}
+
+/// POST /api/ssh-terminals/{id}/mkdir — create directory on remote host.
+pub async fn ssh_terminal_mkdir(
+    State(state): State<Arc<AppState>>,
+    AuthUser(_): AuthUser,
+    Path(id): Path<String>,
+    Json(input): Json<SshFileOpInput>,
+) -> Result<Json<ApiResponse<()>>, AppError> {
+    let id: Uuid = id
+        .parse()
+        .map_err(|_| AppError::BadRequest("invalid id".into()))?;
+    let terminal = SshTerminalRepo::get_raw(&state.db, id).await?;
+    let safe = shell_escape(&input.path);
+    ssh_exec_command(&terminal, &format!("mkdir -p '{safe}'")).await?;
+    Ok(ok_empty())
+}
+
+/// POST /api/ssh-terminals/{id}/rm — delete file or directory on remote host.
+pub async fn ssh_terminal_rm(
+    State(state): State<Arc<AppState>>,
+    AuthUser(_): AuthUser,
+    Path(id): Path<String>,
+    Json(input): Json<SshFileOpInput>,
+) -> Result<Json<ApiResponse<()>>, AppError> {
+    let id: Uuid = id
+        .parse()
+        .map_err(|_| AppError::BadRequest("invalid id".into()))?;
+    let terminal = SshTerminalRepo::get_raw(&state.db, id).await?;
+    let safe = shell_escape(&input.path);
+    ssh_exec_command(&terminal, &format!("rm -rf '{safe}'")).await?;
+    Ok(ok_empty())
+}
+
+/// POST /api/ssh-terminals/{id}/rename — rename/move file on remote host.
+pub async fn ssh_terminal_rename(
+    State(state): State<Arc<AppState>>,
+    AuthUser(_): AuthUser,
+    Path(id): Path<String>,
+    Json(input): Json<SshRenameInput>,
+) -> Result<Json<ApiResponse<()>>, AppError> {
+    let id: Uuid = id
+        .parse()
+        .map_err(|_| AppError::BadRequest("invalid id".into()))?;
+    let terminal = SshTerminalRepo::get_raw(&state.db, id).await?;
+    let from = shell_escape(&input.from);
+    let to = shell_escape(&input.to);
+    ssh_exec_command(&terminal, &format!("mv '{from}' '{to}'")).await?;
+    Ok(ok_empty())
+}
+
+/// POST /api/ssh-terminals/{id}/read-file — read text file content from remote host.
+pub async fn ssh_terminal_read_file(
+    State(state): State<Arc<AppState>>,
+    AuthUser(_): AuthUser,
+    Path(id): Path<String>,
+    Json(input): Json<SshFileOpInput>,
+) -> Result<Json<ApiResponse<SshFileContentResponse>>, AppError> {
+    let id: Uuid = id
+        .parse()
+        .map_err(|_| AppError::BadRequest("invalid id".into()))?;
+    let terminal = SshTerminalRepo::get_raw(&state.db, id).await?;
+    let safe = shell_escape(&input.path);
+    let content = ssh_exec_command(&terminal, &format!("cat '{safe}'")).await?;
+    Ok(ok(SshFileContentResponse {
+        path: input.path,
+        content,
+    }))
+}
+
+/// POST /api/ssh-terminals/{id}/write-file — write text content to file on remote host.
+pub async fn ssh_terminal_write_file(
+    State(state): State<Arc<AppState>>,
+    AuthUser(_): AuthUser,
+    Path(id): Path<String>,
+    Json(input): Json<SshWriteFileInput>,
+) -> Result<Json<ApiResponse<()>>, AppError> {
+    let id: Uuid = id
+        .parse()
+        .map_err(|_| AppError::BadRequest("invalid id".into()))?;
+    let terminal = SshTerminalRepo::get_raw(&state.db, id).await?;
+    let safe = shell_escape(&input.path);
+    let cmd = format!("cat > '{safe}'");
+    ssh_exec_command_with_stdin(&terminal, &cmd, input.content.as_bytes()).await?;
+    Ok(ok_empty())
+}
+
+/// GET /api/ssh-terminals/{id}/download — download file as binary stream.
+pub async fn ssh_terminal_download(
+    State(state): State<Arc<AppState>>,
+    AuthUser(_): AuthUser,
+    Path(id): Path<String>,
+    Query(query): Query<SshFileOpInput>,
+) -> Result<impl IntoResponse, AppError> {
+    let id: Uuid = id
+        .parse()
+        .map_err(|_| AppError::BadRequest("invalid id".into()))?;
+    let terminal = SshTerminalRepo::get_raw(&state.db, id).await?;
+    let safe = shell_escape(&query.path);
+    let bytes = ssh_exec_command_bytes(&terminal, &format!("cat '{safe}'")).await?;
+
+    // Extract filename from path
+    let filename = query
+        .path
+        .rsplit('/')
+        .next()
+        .unwrap_or("download")
+        .to_string();
+    let safe_filename = filename.replace('"', "\\\"");
+
+    Ok((
+        [
+            (
+                axum::http::header::CONTENT_TYPE,
+                "application/octet-stream".to_string(),
+            ),
+            (
+                axum::http::header::CONTENT_DISPOSITION,
+                format!("attachment; filename=\"{safe_filename}\""),
+            ),
+        ],
+        bytes,
+    ))
+}
+
 // ── GET /api/ssh-terminals/{id}/stats ────────────────────────────────────────
 
 #[derive(Debug, Serialize, TS)]
@@ -951,4 +1236,1191 @@ pub async fn ssh_terminal_df(
     }
 
     Ok(ok(SshDfResponse { disks }))
+}
+
+// ── GET /api/ssh-terminals/{id}/net ──────────────────────────────────────────
+
+#[derive(Debug, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct SshNetworkInterfaceEntry {
+    /// Interface name (e.g. eth0, lo)
+    pub name: String,
+    /// IP addresses with prefix (e.g. 192.168.1.2/24)
+    pub ip_addresses: Vec<String>,
+    /// MAC address (e.g. 00:11:22:33:44:55)
+    pub mac_address: String,
+    /// Whether the interface is up
+    pub is_up: bool,
+    /// MTU value
+    #[ts(type = "number | null")]
+    pub mtu: Option<u64>,
+    /// Total received bytes
+    #[ts(type = "number")]
+    pub rx_bytes: u64,
+    /// Total transmitted bytes
+    #[ts(type = "number")]
+    pub tx_bytes: u64,
+}
+
+#[derive(Debug, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct SshListeningSocketEntry {
+    /// Protocol (tcp, udp)
+    pub protocol: String,
+    /// Local address (e.g. 0.0.0.0:80, :::443)
+    pub local_address: String,
+    /// Peer address
+    pub peer_address: String,
+    /// Socket state (LISTEN, ESTAB, etc.)
+    pub state: String,
+    /// Process info (e.g. "nginx" or "pid/name")
+    pub process: String,
+}
+
+#[derive(Debug, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct SshConnectionEntry {
+    /// Protocol (tcp, udp)
+    pub protocol: String,
+    /// Local address
+    pub local_address: String,
+    /// Peer/remote address
+    pub peer_address: String,
+    /// Connection state (ESTAB, TIME-WAIT, etc.)
+    pub state: String,
+    /// Process name
+    pub process: String,
+}
+
+#[derive(Debug, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct SshRouteEntry {
+    /// Destination network (e.g. "default", "192.168.1.0/24")
+    pub destination: String,
+    /// Gateway address (e.g. "172.17.0.1")
+    pub gateway: String,
+    /// Network interface (e.g. "eth0")
+    pub iface: String,
+    /// Protocol (e.g. "kernel", "dhcp", "static")
+    pub protocol: String,
+    /// Scope (e.g. "link", "global")
+    pub scope: String,
+    /// Metric value
+    pub metric: String,
+}
+
+#[derive(Debug, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct SshNetworkResponse {
+    pub interfaces: Vec<SshNetworkInterfaceEntry>,
+    pub listening: Vec<SshListeningSocketEntry>,
+    pub connections: Vec<SshConnectionEntry>,
+    pub routes: Vec<SshRouteEntry>,
+}
+
+/// GET /api/ssh-terminals/{id}/net — fetch remote host network info.
+pub async fn ssh_terminal_net(
+    State(state): State<Arc<AppState>>,
+    AuthUser(_): AuthUser,
+    Path(id): Path<String>,
+) -> Result<Json<ApiResponse<SshNetworkResponse>>, AppError> {
+    let id: Uuid = id
+        .parse()
+        .map_err(|_| AppError::BadRequest("invalid id".into()))?;
+
+    let terminal = SshTerminalRepo::get_raw(&state.db, id).await?;
+
+    // Collect interface info, listening sockets, and established connections in one script
+    let script = r#"echo '===INTERFACES===';
+ip -o addr show 2>/dev/null || ifconfig 2>/dev/null;
+echo '===LINKS===';
+ip -o link show 2>/dev/null;
+echo '===LISTENING===';
+ss -tunlp 2>/dev/null | tail -n +2;
+echo '===CONNECTIONS===';
+ss -tunp state established 2>/dev/null | tail -n +2;
+echo '===RX_TX===';
+cat /proc/net/dev 2>/dev/null | tail -n +3;
+echo '===ROUTES===';
+ip route show 2>/dev/null"#;
+
+    let output = ssh_exec_command(&terminal, script).await?;
+
+    let mut interfaces: Vec<SshNetworkInterfaceEntry> = Vec::new();
+    let mut listening: Vec<SshListeningSocketEntry> = Vec::new();
+    let mut connections: Vec<SshConnectionEntry> = Vec::new();
+    let mut routes: Vec<SshRouteEntry> = Vec::new();
+
+    // Parse sections
+    let sections: Vec<&str> = output.split("===").collect();
+
+    // Helper to find section content by name
+    let find_section = |name: &str| -> String {
+        for i in 0..sections.len() {
+            if sections[i].trim() == name && i + 1 < sections.len() {
+                return sections[i + 1].to_string();
+            }
+        }
+        String::new()
+    };
+
+    let iface_section = find_section("INTERFACES");
+    let links_section = find_section("LINKS");
+    let listening_section = find_section("LISTENING");
+    let connections_section = find_section("CONNECTIONS");
+    let rxtx_section = find_section("RX_TX");
+    let routes_section = find_section("ROUTES");
+
+    // Parse ip -o addr output: "2: eth0    inet 172.17.0.2/16 ..."
+    let mut iface_map: std::collections::HashMap<String, Vec<String>> =
+        std::collections::HashMap::new();
+    for line in iface_section.lines() {
+        let line = line.trim();
+        if line.is_empty() {
+            continue;
+        }
+        let parts: Vec<&str> = line.split_whitespace().collect();
+        if parts.len() >= 4 {
+            let name = parts[1].trim_end_matches(':').to_string();
+            // parts[2] = "inet" or "inet6", parts[3] = addr/prefix
+            let addr = parts[3].to_string();
+            iface_map.entry(name).or_default().push(addr);
+        }
+    }
+
+    // Parse ip -o link output for MAC and state: "2: eth0: <...UP...> ... link/ether aa:bb:cc ..."
+    let mut link_info: std::collections::HashMap<String, (String, bool, Option<u64>)> =
+        std::collections::HashMap::new();
+    for line in links_section.lines() {
+        let line = line.trim();
+        if line.is_empty() {
+            continue;
+        }
+        let parts: Vec<&str> = line.split_whitespace().collect();
+        if parts.len() >= 3 {
+            let name = parts[1].trim_end_matches(':').to_string();
+            let is_up = line.contains("UP");
+            let mut mac = String::new();
+            let mut mtu: Option<u64> = None;
+            for (i, p) in parts.iter().enumerate() {
+                if *p == "link/ether" && i + 1 < parts.len() {
+                    mac = parts[i + 1].to_string();
+                }
+                if *p == "mtu" && i + 1 < parts.len() {
+                    mtu = parts[i + 1].parse().ok();
+                }
+            }
+            link_info.insert(name, (mac, is_up, mtu));
+        }
+    }
+
+    // Parse /proc/net/dev for RX/TX bytes
+    let mut rxtx_map: std::collections::HashMap<String, (u64, u64)> =
+        std::collections::HashMap::new();
+    for line in rxtx_section.lines() {
+        let line = line.trim();
+        if line.is_empty() {
+            continue;
+        }
+        if let Some((name, rest)) = line.split_once(':') {
+            let name = name.trim().to_string();
+            let nums: Vec<u64> = rest
+                .split_whitespace()
+                .filter_map(|s| s.parse().ok())
+                .collect();
+            if nums.len() >= 9 {
+                rxtx_map.insert(name, (nums[0], nums[8])); // rx_bytes, tx_bytes
+            }
+        }
+    }
+
+    // Merge into interface entries
+    let mut all_names: std::collections::HashSet<String> = std::collections::HashSet::new();
+    for name in iface_map.keys() {
+        all_names.insert(name.clone());
+    }
+    for name in link_info.keys() {
+        all_names.insert(name.clone());
+    }
+    for name in &all_names {
+        let ip_addresses = iface_map.get(name).cloned().unwrap_or_default();
+        let (mac_address, is_up, mtu) = link_info.get(name).cloned().unwrap_or_default();
+        let (rx_bytes, tx_bytes) = rxtx_map.get(name).copied().unwrap_or((0, 0));
+        interfaces.push(SshNetworkInterfaceEntry {
+            name: name.clone(),
+            ip_addresses,
+            mac_address,
+            is_up,
+            mtu,
+            rx_bytes,
+            tx_bytes,
+        });
+    }
+    interfaces.sort_by(|a, b| a.name.cmp(&b.name));
+
+    // Parse ss -tunlp output for listening sockets
+    // Format: "tcp   LISTEN  0  128  0.0.0.0:22  0.0.0.0:*  users:(("sshd",pid=1,fd=3))"
+    for line in listening_section.lines() {
+        let line = line.trim();
+        if line.is_empty() {
+            continue;
+        }
+        let parts: Vec<&str> = line.split_whitespace().collect();
+        if parts.len() >= 5 {
+            let protocol = parts[0].to_string();
+            let state = parts[1].to_string();
+            let local_address = parts[4].to_string();
+            let peer_address = if parts.len() > 5 {
+                parts[5].to_string()
+            } else {
+                String::new()
+            };
+            let process = if parts.len() > 6 {
+                // Extract process name from users:(("name",...))
+                let raw = parts[6..].join(" ");
+                extract_process_name(&raw)
+            } else {
+                String::new()
+            };
+            listening.push(SshListeningSocketEntry {
+                protocol,
+                local_address,
+                peer_address,
+                state,
+                process,
+            });
+        }
+    }
+
+    // Parse ss -tunp state established
+    for line in connections_section.lines() {
+        let line = line.trim();
+        if line.is_empty() {
+            continue;
+        }
+        let parts: Vec<&str> = line.split_whitespace().collect();
+        if parts.len() >= 5 {
+            let protocol = parts[0].to_string();
+            let local_address = parts[3].to_string();
+            let peer_address = parts[4].to_string();
+            let process = if parts.len() > 5 {
+                let raw = parts[5..].join(" ");
+                extract_process_name(&raw)
+            } else {
+                String::new()
+            };
+            connections.push(SshConnectionEntry {
+                protocol,
+                local_address,
+                peer_address,
+                state: "ESTAB".to_string(),
+                process,
+            });
+        }
+    }
+
+    // Parse ip route show output
+    // Format: "default via 172.17.0.1 dev eth0 proto dhcp metric 100"
+    //         "172.17.0.0/16 dev eth0 proto kernel scope link src 172.17.0.2"
+    for line in routes_section.lines() {
+        let line = line.trim();
+        if line.is_empty() {
+            continue;
+        }
+        let parts: Vec<&str> = line.split_whitespace().collect();
+        if parts.is_empty() {
+            continue;
+        }
+        let destination = parts[0].to_string();
+        let mut gateway = String::new();
+        let mut iface = String::new();
+        let mut protocol = String::new();
+        let mut scope = String::new();
+        let mut metric = String::new();
+        let mut i = 1;
+        while i < parts.len() {
+            match parts[i] {
+                "via" if i + 1 < parts.len() => {
+                    gateway = parts[i + 1].to_string();
+                    i += 2;
+                }
+                "dev" if i + 1 < parts.len() => {
+                    iface = parts[i + 1].to_string();
+                    i += 2;
+                }
+                "proto" if i + 1 < parts.len() => {
+                    protocol = parts[i + 1].to_string();
+                    i += 2;
+                }
+                "scope" if i + 1 < parts.len() => {
+                    scope = parts[i + 1].to_string();
+                    i += 2;
+                }
+                "metric" if i + 1 < parts.len() => {
+                    metric = parts[i + 1].to_string();
+                    i += 2;
+                }
+                _ => i += 1,
+            }
+        }
+        routes.push(SshRouteEntry {
+            destination,
+            gateway,
+            iface,
+            protocol,
+            scope,
+            metric,
+        });
+    }
+
+    Ok(ok(SshNetworkResponse {
+        interfaces,
+        listening,
+        connections,
+        routes,
+    }))
+}
+
+/// Extract process name from ss users field like `users:(("sshd",pid=1234,fd=3))`
+fn extract_process_name(raw: &str) -> String {
+    if let Some(start) = raw.find("((\"") {
+        if let Some(end) = raw[start + 3..].find('"') {
+            return raw[start + 3..start + 3 + end].to_string();
+        }
+    }
+    raw.to_string()
+}
+
+// ── Docker helpers ───────────────────────────────────────────────────────────
+
+#[derive(Debug, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct DockerContainerEntry {
+    pub id: String,
+    pub name: String,
+    pub image: String,
+    pub state: String,
+    pub status: String,
+    #[ts(type = "number")]
+    pub created_ts: i64,
+    pub ports: String,
+}
+
+#[derive(Debug, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct SshDockerPsResponse {
+    pub available: bool,
+    pub containers: Vec<DockerContainerEntry>,
+}
+
+/// GET /api/ssh-terminals/{id}/docker/ps — list Docker containers on remote host.
+pub async fn ssh_docker_ps(
+    State(state): State<Arc<AppState>>,
+    AuthUser(_): AuthUser,
+    Path(id): Path<String>,
+) -> Result<Json<ApiResponse<SshDockerPsResponse>>, AppError> {
+    let id: Uuid = id
+        .parse()
+        .map_err(|_| AppError::BadRequest("invalid id".into()))?;
+
+    let terminal = SshTerminalRepo::get_raw(&state.db, id).await?;
+
+    // Check if docker/podman is available, then list all containers
+    let script = r#"command -v docker >/dev/null 2>&1 && echo '__DOCKER_OK__' && docker ps -a --format '{{.ID}}\t{{.Names}}\t{{.Image}}\t{{.State}}\t{{.Status}}\t{{.CreatedAt}}\t{{.Ports}}' 2>/dev/null || echo '__NO_DOCKER__'"#;
+    let output = ssh_exec_command(&terminal, script).await?;
+
+    if output.contains("__NO_DOCKER__") {
+        return Ok(ok(SshDockerPsResponse {
+            available: false,
+            containers: Vec::new(),
+        }));
+    }
+
+    let mut containers = Vec::new();
+    for line in output.lines() {
+        if line.starts_with("__DOCKER_OK__") || line.is_empty() {
+            continue;
+        }
+        let parts: Vec<&str> = line.splitn(7, '\t').collect();
+        if parts.len() < 5 {
+            continue;
+        }
+        containers.push(DockerContainerEntry {
+            id: parts[0].to_string(),
+            name: parts[1].to_string(),
+            image: parts[2].to_string(),
+            state: parts[3].to_string(),
+            status: parts.get(4).unwrap_or(&"").to_string(),
+            created_ts: parse_docker_time(parts.get(5).unwrap_or(&"")),
+            ports: parts.get(6).unwrap_or(&"").to_string(),
+        });
+    }
+
+    Ok(ok(SshDockerPsResponse {
+        available: true,
+        containers,
+    }))
+}
+
+fn parse_docker_time(s: &str) -> i64 {
+    // Docker outputs "2025-03-20 12:34:56 +0800 CST"
+    // We just parse best-effort, return 0 on failure
+    chrono::NaiveDateTime::parse_from_str(s.get(..19).unwrap_or(""), "%Y-%m-%d %H:%M:%S")
+        .map(|dt| dt.and_utc().timestamp())
+        .unwrap_or(0)
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DockerActionInput {
+    pub container_id: String,
+}
+
+/// POST /api/ssh-terminals/{id}/docker/start — start a container.
+pub async fn ssh_docker_start(
+    State(state): State<Arc<AppState>>,
+    AuthUser(_): AuthUser,
+    Path(id): Path<String>,
+    Json(body): Json<DockerActionInput>,
+) -> Result<Json<ApiResponse<()>>, AppError> {
+    let id: Uuid = id
+        .parse()
+        .map_err(|_| AppError::BadRequest("invalid id".into()))?;
+    let terminal = SshTerminalRepo::get_raw(&state.db, id).await?;
+
+    let cid = sanitize_container_id(&body.container_id)?;
+    ssh_exec_command(&terminal, &format!("docker start {cid}")).await?;
+    Ok(ok_empty())
+}
+
+/// POST /api/ssh-terminals/{id}/docker/stop — stop a container.
+pub async fn ssh_docker_stop(
+    State(state): State<Arc<AppState>>,
+    AuthUser(_): AuthUser,
+    Path(id): Path<String>,
+    Json(body): Json<DockerActionInput>,
+) -> Result<Json<ApiResponse<()>>, AppError> {
+    let id: Uuid = id
+        .parse()
+        .map_err(|_| AppError::BadRequest("invalid id".into()))?;
+    let terminal = SshTerminalRepo::get_raw(&state.db, id).await?;
+
+    let cid = sanitize_container_id(&body.container_id)?;
+    ssh_exec_command(&terminal, &format!("docker stop {cid}")).await?;
+    Ok(ok_empty())
+}
+
+/// POST /api/ssh-terminals/{id}/docker/restart — restart a container.
+pub async fn ssh_docker_restart(
+    State(state): State<Arc<AppState>>,
+    AuthUser(_): AuthUser,
+    Path(id): Path<String>,
+    Json(body): Json<DockerActionInput>,
+) -> Result<Json<ApiResponse<()>>, AppError> {
+    let id: Uuid = id
+        .parse()
+        .map_err(|_| AppError::BadRequest("invalid id".into()))?;
+    let terminal = SshTerminalRepo::get_raw(&state.db, id).await?;
+
+    let cid = sanitize_container_id(&body.container_id)?;
+    ssh_exec_command(&terminal, &format!("docker restart {cid}")).await?;
+    Ok(ok_empty())
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DockerLogsInput {
+    pub container_id: String,
+    pub tail: Option<u32>,
+}
+
+#[derive(Debug, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct SshDockerLogsResponse {
+    pub logs: String,
+}
+
+/// POST /api/ssh-terminals/{id}/docker/logs — get recent container logs.
+pub async fn ssh_docker_logs(
+    State(state): State<Arc<AppState>>,
+    AuthUser(_): AuthUser,
+    Path(id): Path<String>,
+    Json(body): Json<DockerLogsInput>,
+) -> Result<Json<ApiResponse<SshDockerLogsResponse>>, AppError> {
+    let id: Uuid = id
+        .parse()
+        .map_err(|_| AppError::BadRequest("invalid id".into()))?;
+    let terminal = SshTerminalRepo::get_raw(&state.db, id).await?;
+
+    let cid = sanitize_container_id(&body.container_id)?;
+    let tail = body.tail.unwrap_or(200).min(2000);
+    let logs =
+        ssh_exec_command(&terminal, &format!("docker logs --tail {tail} {cid} 2>&1")).await?;
+
+    Ok(ok(SshDockerLogsResponse { logs }))
+}
+
+#[derive(Debug, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct DockerImageEntry {
+    pub id: String,
+    pub repository: String,
+    pub tag: String,
+    pub size: String,
+    pub created: String,
+}
+
+#[derive(Debug, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct SshDockerImagesResponse {
+    pub images: Vec<DockerImageEntry>,
+}
+
+/// GET /api/ssh-terminals/{id}/docker/images — list Docker images.
+pub async fn ssh_docker_images(
+    State(state): State<Arc<AppState>>,
+    AuthUser(_): AuthUser,
+    Path(id): Path<String>,
+) -> Result<Json<ApiResponse<SshDockerImagesResponse>>, AppError> {
+    let id: Uuid = id
+        .parse()
+        .map_err(|_| AppError::BadRequest("invalid id".into()))?;
+    let terminal = SshTerminalRepo::get_raw(&state.db, id).await?;
+
+    let script = r#"docker images --format '{{.ID}}\t{{.Repository}}\t{{.Tag}}\t{{.Size}}\t{{.CreatedSince}}' 2>/dev/null"#;
+    let output = ssh_exec_command(&terminal, script).await?;
+
+    let mut images = Vec::new();
+    for line in output.lines() {
+        if line.is_empty() {
+            continue;
+        }
+        let parts: Vec<&str> = line.splitn(5, '\t').collect();
+        if parts.len() < 4 {
+            continue;
+        }
+        images.push(DockerImageEntry {
+            id: parts[0].to_string(),
+            repository: parts[1].to_string(),
+            tag: parts[2].to_string(),
+            size: parts.get(3).unwrap_or(&"").to_string(),
+            created: parts.get(4).unwrap_or(&"").to_string(),
+        });
+    }
+
+    Ok(ok(SshDockerImagesResponse { images }))
+}
+
+/// Validate container ID — only allow alphanumeric, dash, underscore, dot, colon, slash.
+fn sanitize_container_id(id: &str) -> Result<&str, AppError> {
+    if id.is_empty() || id.len() > 128 {
+        return Err(AppError::BadRequest("invalid container id".into()));
+    }
+    if id.chars().all(|c| {
+        c.is_ascii_alphanumeric() || c == '-' || c == '_' || c == '.' || c == ':' || c == '/'
+    }) {
+        Ok(id)
+    } else {
+        Err(AppError::BadRequest("invalid container id".into()))
+    }
+}
+
+// ── Docker container remove ──────────────────────────────────────────────────
+
+/// POST /api/ssh-terminals/{id}/docker/rm — remove a stopped container.
+pub async fn ssh_docker_rm(
+    State(state): State<Arc<AppState>>,
+    AuthUser(_): AuthUser,
+    Path(id): Path<String>,
+    Json(body): Json<DockerActionInput>,
+) -> Result<Json<ApiResponse<()>>, AppError> {
+    let id: Uuid = id
+        .parse()
+        .map_err(|_| AppError::BadRequest("invalid id".into()))?;
+    let terminal = SshTerminalRepo::get_raw(&state.db, id).await?;
+
+    let cid = sanitize_container_id(&body.container_id)?;
+    ssh_exec_command(&terminal, &format!("docker rm {cid}")).await?;
+    Ok(ok_empty())
+}
+
+// ── Docker pause / unpause ───────────────────────────────────────────────────
+
+/// POST /api/ssh-terminals/{id}/docker/pause — pause a running container.
+pub async fn ssh_docker_pause(
+    State(state): State<Arc<AppState>>,
+    AuthUser(_): AuthUser,
+    Path(id): Path<String>,
+    Json(body): Json<DockerActionInput>,
+) -> Result<Json<ApiResponse<()>>, AppError> {
+    let id: Uuid = id
+        .parse()
+        .map_err(|_| AppError::BadRequest("invalid id".into()))?;
+    let terminal = SshTerminalRepo::get_raw(&state.db, id).await?;
+
+    let cid = sanitize_container_id(&body.container_id)?;
+    ssh_exec_command(&terminal, &format!("docker pause {cid}")).await?;
+    Ok(ok_empty())
+}
+
+/// POST /api/ssh-terminals/{id}/docker/unpause — unpause a paused container.
+pub async fn ssh_docker_unpause(
+    State(state): State<Arc<AppState>>,
+    AuthUser(_): AuthUser,
+    Path(id): Path<String>,
+    Json(body): Json<DockerActionInput>,
+) -> Result<Json<ApiResponse<()>>, AppError> {
+    let id: Uuid = id
+        .parse()
+        .map_err(|_| AppError::BadRequest("invalid id".into()))?;
+    let terminal = SshTerminalRepo::get_raw(&state.db, id).await?;
+
+    let cid = sanitize_container_id(&body.container_id)?;
+    ssh_exec_command(&terminal, &format!("docker unpause {cid}")).await?;
+    Ok(ok_empty())
+}
+
+// ── Docker image remove ──────────────────────────────────────────────────────
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DockerImageActionInput {
+    pub image_id: String,
+}
+
+/// POST /api/ssh-terminals/{id}/docker/rmi — remove a Docker image.
+pub async fn ssh_docker_rmi(
+    State(state): State<Arc<AppState>>,
+    AuthUser(_): AuthUser,
+    Path(id): Path<String>,
+    Json(body): Json<DockerImageActionInput>,
+) -> Result<Json<ApiResponse<()>>, AppError> {
+    let id: Uuid = id
+        .parse()
+        .map_err(|_| AppError::BadRequest("invalid id".into()))?;
+    let terminal = SshTerminalRepo::get_raw(&state.db, id).await?;
+
+    let img = sanitize_container_id(&body.image_id)?;
+    ssh_exec_command(&terminal, &format!("docker rmi {img}")).await?;
+    Ok(ok_empty())
+}
+
+// ── Docker networks ──────────────────────────────────────────────────────────
+
+#[derive(Debug, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct DockerNetworkEntry {
+    pub id: String,
+    pub name: String,
+    pub driver: String,
+    pub scope: String,
+    pub ipam_subnet: String,
+    pub ipam_gateway: String,
+}
+
+#[derive(Debug, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct SshDockerNetworksResponse {
+    pub networks: Vec<DockerNetworkEntry>,
+}
+
+/// GET /api/ssh-terminals/{id}/docker/networks — list Docker networks.
+pub async fn ssh_docker_networks(
+    State(state): State<Arc<AppState>>,
+    AuthUser(_): AuthUser,
+    Path(id): Path<String>,
+) -> Result<Json<ApiResponse<SshDockerNetworksResponse>>, AppError> {
+    let id: Uuid = id
+        .parse()
+        .map_err(|_| AppError::BadRequest("invalid id".into()))?;
+    let terminal = SshTerminalRepo::get_raw(&state.db, id).await?;
+
+    let script =
+        r#"docker network ls --format '{{.ID}}\t{{.Name}}\t{{.Driver}}\t{{.Scope}}' 2>/dev/null"#;
+    let output = ssh_exec_command(&terminal, script).await?;
+
+    // Also get IPAM info via inspect
+    let inspect_script = r#"docker network inspect --format '{{.ID}}\t{{range .IPAM.Config}}{{.Subnet}}\t{{.Gateway}}{{end}}' $(docker network ls -q) 2>/dev/null"#;
+    let inspect_output = ssh_exec_command(&terminal, inspect_script)
+        .await
+        .unwrap_or_default();
+
+    // Build a map of network ID -> (subnet, gateway)
+    let mut ipam_map = std::collections::HashMap::new();
+    for line in inspect_output.lines() {
+        let parts: Vec<&str> = line.splitn(3, '\t').collect();
+        if parts.len() >= 1 {
+            let nid = parts[0];
+            let subnet = parts.get(1).unwrap_or(&"").to_string();
+            let gateway = parts.get(2).unwrap_or(&"").to_string();
+            ipam_map.insert(nid.to_string(), (subnet, gateway));
+        }
+    }
+
+    let mut networks = Vec::new();
+    for line in output.lines() {
+        if line.is_empty() {
+            continue;
+        }
+        let parts: Vec<&str> = line.splitn(4, '\t').collect();
+        if parts.len() < 3 {
+            continue;
+        }
+        let net_id = parts[0].to_string();
+        let (subnet, gateway) = ipam_map
+            .get(&net_id)
+            .cloned()
+            .unwrap_or((String::new(), String::new()));
+        networks.push(DockerNetworkEntry {
+            id: net_id,
+            name: parts[1].to_string(),
+            driver: parts[2].to_string(),
+            scope: parts.get(3).unwrap_or(&"").to_string(),
+            ipam_subnet: subnet,
+            ipam_gateway: gateway,
+        });
+    }
+
+    Ok(ok(SshDockerNetworksResponse { networks }))
+}
+
+// ── Docker container inspect ─────────────────────────────────────────────────
+
+#[derive(Debug, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct DockerContainerInspect {
+    pub id: String,
+    pub name: String,
+    pub image: String,
+    pub state: String,
+    pub pid: i64,
+    pub started_at: String,
+    pub finished_at: String,
+    pub restart_count: i64,
+    pub platform: String,
+    pub env: Vec<String>,
+    pub cmd: String,
+    pub entrypoint: String,
+    pub working_dir: String,
+    pub hostname: String,
+    pub network_mode: String,
+    pub port_bindings: String,
+    pub mounts: Vec<DockerMountEntry>,
+    pub networks: Vec<DockerContainerNetwork>,
+}
+
+#[derive(Debug, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct DockerMountEntry {
+    pub source: String,
+    pub destination: String,
+    pub mode: String,
+    pub rw: bool,
+}
+
+#[derive(Debug, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct DockerContainerNetwork {
+    pub name: String,
+    pub ip_address: String,
+    pub gateway: String,
+    pub mac_address: String,
+}
+
+#[derive(Debug, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct SshDockerInspectResponse {
+    pub container: DockerContainerInspect,
+}
+
+/// GET /api/ssh-terminals/{id}/docker/inspect?containerId=xxx — inspect a container.
+pub async fn ssh_docker_inspect(
+    State(state): State<Arc<AppState>>,
+    AuthUser(_): AuthUser,
+    Path(id): Path<String>,
+    Query(params): Query<DockerInspectQuery>,
+) -> Result<Json<ApiResponse<SshDockerInspectResponse>>, AppError> {
+    let id: Uuid = id
+        .parse()
+        .map_err(|_| AppError::BadRequest("invalid id".into()))?;
+    let terminal = SshTerminalRepo::get_raw(&state.db, id).await?;
+    let cid = sanitize_container_id(&params.container_id)?;
+
+    // Get JSON inspect output
+    let output = ssh_exec_command(&terminal, &format!("docker inspect {cid} 2>/dev/null")).await?;
+
+    let parsed: serde_json::Value =
+        serde_json::from_str(&output).map_err(|e| AppError::Internal(format!("json: {e}")))?;
+
+    let c = parsed
+        .as_array()
+        .and_then(|a| a.first())
+        .ok_or_else(|| AppError::Internal("empty inspect".into()))?;
+
+    let mounts = c["Mounts"]
+        .as_array()
+        .map(|arr| {
+            arr.iter()
+                .map(|m| DockerMountEntry {
+                    source: m["Source"].as_str().unwrap_or("").to_string(),
+                    destination: m["Destination"].as_str().unwrap_or("").to_string(),
+                    mode: m["Mode"].as_str().unwrap_or("").to_string(),
+                    rw: m["RW"].as_bool().unwrap_or(false),
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+
+    let networks = c["NetworkSettings"]["Networks"]
+        .as_object()
+        .map(|obj| {
+            obj.iter()
+                .map(|(name, v)| DockerContainerNetwork {
+                    name: name.clone(),
+                    ip_address: v["IPAddress"].as_str().unwrap_or("").to_string(),
+                    gateway: v["Gateway"].as_str().unwrap_or("").to_string(),
+                    mac_address: v["MacAddress"].as_str().unwrap_or("").to_string(),
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+
+    let env = c["Config"]["Env"]
+        .as_array()
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|v| v.as_str().map(String::from))
+                .collect()
+        })
+        .unwrap_or_default();
+
+    let port_bindings_val = &c["HostConfig"]["PortBindings"];
+    let port_bindings = if port_bindings_val.is_object() {
+        serde_json::to_string(port_bindings_val).unwrap_or_default()
+    } else {
+        String::new()
+    };
+
+    let container = DockerContainerInspect {
+        id: c["Id"].as_str().unwrap_or("").to_string(),
+        name: c["Name"]
+            .as_str()
+            .unwrap_or("")
+            .trim_start_matches('/')
+            .to_string(),
+        image: c["Config"]["Image"].as_str().unwrap_or("").to_string(),
+        state: c["State"]["Status"].as_str().unwrap_or("").to_string(),
+        pid: c["State"]["Pid"].as_i64().unwrap_or(0),
+        started_at: c["State"]["StartedAt"].as_str().unwrap_or("").to_string(),
+        finished_at: c["State"]["FinishedAt"].as_str().unwrap_or("").to_string(),
+        restart_count: c["RestartCount"].as_i64().unwrap_or(0),
+        platform: c["Platform"].as_str().unwrap_or("").to_string(),
+        env,
+        cmd: c["Config"]["Cmd"]
+            .as_array()
+            .map(|a| {
+                a.iter()
+                    .filter_map(|v| v.as_str())
+                    .collect::<Vec<_>>()
+                    .join(" ")
+            })
+            .unwrap_or_default(),
+        entrypoint: c["Config"]["Entrypoint"]
+            .as_array()
+            .map(|a| {
+                a.iter()
+                    .filter_map(|v| v.as_str())
+                    .collect::<Vec<_>>()
+                    .join(" ")
+            })
+            .unwrap_or_default(),
+        working_dir: c["Config"]["WorkingDir"].as_str().unwrap_or("").to_string(),
+        hostname: c["Config"]["Hostname"].as_str().unwrap_or("").to_string(),
+        network_mode: c["HostConfig"]["NetworkMode"]
+            .as_str()
+            .unwrap_or("")
+            .to_string(),
+        port_bindings,
+        mounts,
+        networks,
+    };
+
+    Ok(ok(SshDockerInspectResponse { container }))
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DockerInspectQuery {
+    pub container_id: String,
+}
+
+// ── Docker volumes ───────────────────────────────────────────────────────────
+
+#[derive(Debug, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct DockerVolumeEntry {
+    pub name: String,
+    pub driver: String,
+    pub mountpoint: String,
+    pub scope: String,
+    pub created: String,
+    pub size: String,
+}
+
+#[derive(Debug, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct SshDockerVolumesResponse {
+    pub volumes: Vec<DockerVolumeEntry>,
+}
+
+/// GET /api/ssh-terminals/{id}/docker/volumes — list Docker volumes.
+pub async fn ssh_docker_volumes(
+    State(state): State<Arc<AppState>>,
+    AuthUser(_): AuthUser,
+    Path(id): Path<String>,
+) -> Result<Json<ApiResponse<SshDockerVolumesResponse>>, AppError> {
+    let id: Uuid = id
+        .parse()
+        .map_err(|_| AppError::BadRequest("invalid id".into()))?;
+    let terminal = SshTerminalRepo::get_raw(&state.db, id).await?;
+
+    let script = r#"docker volume ls --format '{{.Name}}\t{{.Driver}}\t{{.Mountpoint}}\t{{.Scope}}\t{{.CreatedAt}}' 2>/dev/null"#;
+    let output = ssh_exec_command(&terminal, script).await?;
+
+    // Try to get sizes via docker system df -v
+    let size_script = r#"docker system df -v --format '{{.Name}}\t{{.Size}}' 2>/dev/null | grep -v 'VOLUME' || true"#;
+    let size_output = ssh_exec_command(&terminal, size_script)
+        .await
+        .unwrap_or_default();
+
+    let mut size_map = std::collections::HashMap::new();
+    for line in size_output.lines() {
+        let parts: Vec<&str> = line.splitn(2, '\t').collect();
+        if parts.len() == 2 {
+            size_map.insert(parts[0].to_string(), parts[1].to_string());
+        }
+    }
+
+    let mut volumes = Vec::new();
+    for line in output.lines() {
+        if line.is_empty() {
+            continue;
+        }
+        let parts: Vec<&str> = line.splitn(5, '\t').collect();
+        if parts.is_empty() {
+            continue;
+        }
+        let name = parts[0].to_string();
+        let size = size_map.get(&name).cloned().unwrap_or_default();
+        volumes.push(DockerVolumeEntry {
+            name,
+            driver: parts.get(1).unwrap_or(&"").to_string(),
+            mountpoint: parts.get(2).unwrap_or(&"").to_string(),
+            scope: parts.get(3).unwrap_or(&"").to_string(),
+            created: parts.get(4).unwrap_or(&"").to_string(),
+            size,
+        });
+    }
+
+    Ok(ok(SshDockerVolumesResponse { volumes }))
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DockerVolumeActionInput {
+    pub volume_name: String,
+}
+
+/// POST /api/ssh-terminals/{id}/docker/volume-rm — remove a Docker volume.
+pub async fn ssh_docker_volume_rm(
+    State(state): State<Arc<AppState>>,
+    AuthUser(_): AuthUser,
+    Path(id): Path<String>,
+    Json(body): Json<DockerVolumeActionInput>,
+) -> Result<Json<ApiResponse<()>>, AppError> {
+    let id: Uuid = id
+        .parse()
+        .map_err(|_| AppError::BadRequest("invalid id".into()))?;
+    let terminal = SshTerminalRepo::get_raw(&state.db, id).await?;
+
+    let vname = sanitize_container_id(&body.volume_name)?;
+    ssh_exec_command(&terminal, &format!("docker volume rm {vname}")).await?;
+    Ok(ok_empty())
+}
+
+// ── Docker container stats ───────────────────────────────────────────────────
+
+#[derive(Debug, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct DockerStatsEntry {
+    pub container_id: String,
+    pub name: String,
+    pub cpu_percent: String,
+    pub mem_usage: String,
+    pub mem_limit: String,
+    pub mem_percent: String,
+    pub net_io: String,
+    pub block_io: String,
+    pub pids: String,
+}
+
+#[derive(Debug, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct SshDockerStatsResponse {
+    pub stats: Vec<DockerStatsEntry>,
+}
+
+/// GET /api/ssh-terminals/{id}/docker/stats — get resource usage of all running containers.
+pub async fn ssh_docker_stats(
+    State(state): State<Arc<AppState>>,
+    AuthUser(_): AuthUser,
+    Path(id): Path<String>,
+) -> Result<Json<ApiResponse<SshDockerStatsResponse>>, AppError> {
+    let id: Uuid = id
+        .parse()
+        .map_err(|_| AppError::BadRequest("invalid id".into()))?;
+    let terminal = SshTerminalRepo::get_raw(&state.db, id).await?;
+
+    let script = r#"docker stats --no-stream --format '{{.ID}}\t{{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}\t{{.MemPerc}}\t{{.NetIO}}\t{{.BlockIO}}\t{{.PIDs}}' 2>/dev/null"#;
+    let output = ssh_exec_command(&terminal, script).await?;
+
+    let mut stats = Vec::new();
+    for line in output.lines() {
+        if line.is_empty() {
+            continue;
+        }
+        let parts: Vec<&str> = line.splitn(8, '\t').collect();
+        if parts.len() < 5 {
+            continue;
+        }
+        // MemUsage format: "123MiB / 1GiB"
+        let mem_parts: Vec<&str> = parts.get(3).unwrap_or(&"").split(" / ").collect();
+        stats.push(DockerStatsEntry {
+            container_id: parts[0].to_string(),
+            name: parts[1].to_string(),
+            cpu_percent: parts[2].to_string(),
+            mem_usage: mem_parts.first().unwrap_or(&"").to_string(),
+            mem_limit: mem_parts.get(1).unwrap_or(&"").to_string(),
+            mem_percent: parts.get(4).unwrap_or(&"").to_string(),
+            net_io: parts.get(5).unwrap_or(&"").to_string(),
+            block_io: parts.get(6).unwrap_or(&"").to_string(),
+            pids: parts.get(7).unwrap_or(&"").to_string(),
+        });
+    }
+
+    Ok(ok(SshDockerStatsResponse { stats }))
+}
+
+// ── Docker network remove ────────────────────────────────────────────────────
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DockerNetworkActionInput {
+    pub network_id: String,
+}
+
+/// POST /api/ssh-terminals/{id}/docker/network-rm — remove a Docker network.
+pub async fn ssh_docker_network_rm(
+    State(state): State<Arc<AppState>>,
+    AuthUser(_): AuthUser,
+    Path(id): Path<String>,
+    Json(body): Json<DockerNetworkActionInput>,
+) -> Result<Json<ApiResponse<()>>, AppError> {
+    let id: Uuid = id
+        .parse()
+        .map_err(|_| AppError::BadRequest("invalid id".into()))?;
+    let terminal = SshTerminalRepo::get_raw(&state.db, id).await?;
+
+    let nid = sanitize_container_id(&body.network_id)?;
+    ssh_exec_command(&terminal, &format!("docker network rm {nid}")).await?;
+    Ok(ok_empty())
+}
+
+// ── Docker prune operations ──────────────────────────────────────────────────
+
+#[derive(Debug, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct SshDockerPruneResponse {
+    pub output: String,
+}
+
+/// POST /api/ssh-terminals/{id}/docker/prune-images — remove unused images.
+pub async fn ssh_docker_prune_images(
+    State(state): State<Arc<AppState>>,
+    AuthUser(_): AuthUser,
+    Path(id): Path<String>,
+) -> Result<Json<ApiResponse<SshDockerPruneResponse>>, AppError> {
+    let id: Uuid = id
+        .parse()
+        .map_err(|_| AppError::BadRequest("invalid id".into()))?;
+    let terminal = SshTerminalRepo::get_raw(&state.db, id).await?;
+
+    let output = ssh_exec_command(&terminal, "docker image prune -f 2>&1").await?;
+    Ok(ok(SshDockerPruneResponse { output }))
+}
+
+/// POST /api/ssh-terminals/{id}/docker/prune-volumes — remove unused volumes.
+pub async fn ssh_docker_prune_volumes(
+    State(state): State<Arc<AppState>>,
+    AuthUser(_): AuthUser,
+    Path(id): Path<String>,
+) -> Result<Json<ApiResponse<SshDockerPruneResponse>>, AppError> {
+    let id: Uuid = id
+        .parse()
+        .map_err(|_| AppError::BadRequest("invalid id".into()))?;
+    let terminal = SshTerminalRepo::get_raw(&state.db, id).await?;
+
+    let output = ssh_exec_command(&terminal, "docker volume prune -f 2>&1").await?;
+    Ok(ok(SshDockerPruneResponse { output }))
+}
+
+/// POST /api/ssh-terminals/{id}/docker/prune-networks — remove unused networks.
+pub async fn ssh_docker_prune_networks(
+    State(state): State<Arc<AppState>>,
+    AuthUser(_): AuthUser,
+    Path(id): Path<String>,
+) -> Result<Json<ApiResponse<SshDockerPruneResponse>>, AppError> {
+    let id: Uuid = id
+        .parse()
+        .map_err(|_| AppError::BadRequest("invalid id".into()))?;
+    let terminal = SshTerminalRepo::get_raw(&state.db, id).await?;
+
+    let output = ssh_exec_command(&terminal, "docker network prune -f 2>&1").await?;
+    Ok(ok(SshDockerPruneResponse { output }))
+}
+
+/// POST /api/ssh-terminals/{id}/docker/prune-system — docker system prune.
+pub async fn ssh_docker_prune_system(
+    State(state): State<Arc<AppState>>,
+    AuthUser(_): AuthUser,
+    Path(id): Path<String>,
+) -> Result<Json<ApiResponse<SshDockerPruneResponse>>, AppError> {
+    let id: Uuid = id
+        .parse()
+        .map_err(|_| AppError::BadRequest("invalid id".into()))?;
+    let terminal = SshTerminalRepo::get_raw(&state.db, id).await?;
+
+    let output = ssh_exec_command(&terminal, "docker system prune -f 2>&1").await?;
+    Ok(ok(SshDockerPruneResponse { output }))
 }

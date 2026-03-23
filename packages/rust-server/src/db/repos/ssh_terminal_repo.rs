@@ -66,6 +66,7 @@ impl SshTerminalRepo {
         let model = ssh_terminals::ActiveModel {
             id: Set(Uuid::new_v4()),
             library_id: Set(library_id),
+            file_system_id: Set(None),
             name: Set(name.to_string()),
             host: Set(host.to_string()),
             port: Set(port),

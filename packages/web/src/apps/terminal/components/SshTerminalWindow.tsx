@@ -12,12 +12,20 @@
 
 import "@xterm/xterm/css/xterm.css";
 import type { Terminal } from "@xterm/xterm";
-import { FolderTree, HardDrive, ListTree } from "lucide-react";
+import {
+  Container,
+  FolderTree,
+  HardDrive,
+  ListTree,
+  Network,
+} from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useWindowManager } from "../../contexts/WindowManagerContext";
 import { api } from "../../generated/rust-api";
 import type { SshHostStats } from "../../generated/rust-types/SshHostStats";
+import SshDockerPanel from "./SshDockerPanel";
 import SshFileTree from "./SshFileTree";
+import SshNetworkPanel from "./SshNetworkPanel";
 import SshProcessList from "./SshProcessList";
 import SshStoragePanel from "./SshStoragePanel";
 import { formatBytes } from "./ssh-terminal-utils";
@@ -30,7 +38,7 @@ interface SshTerminalWindowProps {
 }
 
 type ConnectionStatus = "connecting" | "connected" | "disconnected" | "error";
-type BottomTab = "files" | "processes" | "storage";
+type BottomTab = "files" | "processes" | "storage" | "network" | "docker";
 
 function getSshWsUrl(terminalId: string): string {
   const rustServer =
@@ -424,6 +432,18 @@ export default function SshTerminalWindow({
             icon={<HardDrive className="h-3 w-3" />}
             label="存储"
           />
+          <TabButton
+            active={bottomTab === "network"}
+            onClick={() => setBottomTab("network")}
+            icon={<Network className="h-3 w-3" />}
+            label="网络"
+          />
+          <TabButton
+            active={bottomTab === "docker"}
+            onClick={() => setBottomTab("docker")}
+            icon={<Container className="h-3 w-3" />}
+            label="Docker"
+          />
         </div>
 
         {/* Tab content */}
@@ -432,6 +452,10 @@ export default function SshTerminalWindow({
             <SshFileTree terminalId={terminalId} connected={connected} />
           ) : bottomTab === "processes" ? (
             <SshProcessList terminalId={terminalId} connected={connected} />
+          ) : bottomTab === "docker" ? (
+            <SshDockerPanel terminalId={terminalId} connected={connected} />
+          ) : bottomTab === "network" ? (
+            <SshNetworkPanel terminalId={terminalId} connected={connected} />
           ) : (
             <SshStoragePanel terminalId={terminalId} connected={connected} />
           )}

@@ -30,10 +30,19 @@ pub struct Model {
     pub is_enabled: bool,
     pub created_at: DateTimeWithTimeZone,
     pub updated_at: DateTimeWithTimeZone,
+    pub file_system_id: Option<Uuid>,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
 pub enum Relation {
+    #[sea_orm(
+        belongs_to = "super::file_systems::Entity",
+        from = "Column::FileSystemId",
+        to = "super::file_systems::Column::Id",
+        on_update = "Cascade",
+        on_delete = "SetNull"
+    )]
+    FileSystems,
     #[sea_orm(
         belongs_to = "super::media_libraries::Entity",
         from = "Column::LibraryId",
@@ -42,6 +51,12 @@ pub enum Relation {
         on_delete = "Cascade"
     )]
     MediaLibraries,
+}
+
+impl Related<super::file_systems::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::FileSystems.def()
+    }
 }
 
 impl Related<super::media_libraries::Entity> for Entity {
