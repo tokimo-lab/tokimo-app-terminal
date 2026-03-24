@@ -27,10 +27,13 @@ impl SshSessionEntry {
     /// Append `data` to the history buffer and fan it out to all live clients.
     /// Stale senders (whose receivers have been dropped) are removed automatically.
     pub fn broadcast(&mut self, data: Vec<u8>) {
-        self.history.extend_from_slice(&data);
-        if self.history.len() > HISTORY_MAX_BYTES {
-            let excess = self.history.len() - HISTORY_MAX_BYTES;
-            self.history.drain(..excess);
+        // Don't store the ready marker in scrollback — it's a one-time control signal.
+        if data != rust_ssh_terminal::session::SSH_READY_MARKER {
+            self.history.extend_from_slice(&data);
+            if self.history.len() > HISTORY_MAX_BYTES {
+                let excess = self.history.len() - HISTORY_MAX_BYTES;
+                self.history.drain(..excess);
+            }
         }
         self.clients.retain(|tx| tx.try_send(data.clone()).is_ok());
     }

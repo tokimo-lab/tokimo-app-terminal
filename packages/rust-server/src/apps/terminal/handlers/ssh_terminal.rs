@@ -329,7 +329,9 @@ async fn handle_ssh_ws(
                 // best-effort; channel is freshly created so this won't block.
                 let _ = client_tx.try_send(entry.history.clone());
             }
-            entry.clients.push(client_tx.clone());
+            // The session is already authenticated & running — tell the client immediately.
+            let _ = client_tx.try_send(rust_ssh_terminal::session::SSH_READY_MARKER.to_vec());
+            entry.clients.push(client_tx);
             entry.input_tx.clone()
         } else {
             // New session: open SSH shell and register in the map.
@@ -341,7 +343,7 @@ async fn handle_ssh_ws(
                 SshSessionEntry {
                     input_tx: input_tx.clone(),
                     history: Vec::new(),
-                    clients: vec![client_tx.clone()],
+                    clients: vec![client_tx],
                 },
             );
             drop(reg); // release lock before spawning
@@ -426,6 +428,10 @@ async fn handle_ssh_ws(
                 break;
             }
         }
+        // Channel closed (SSH session ended) — send a proper close frame so the
+        // browser fires `onclose`.
+        let _ = ws_sink.send(Message::Close(None)).await;
+        let _ = ws_sink.close().await;
     });
 
     tokio::select! {

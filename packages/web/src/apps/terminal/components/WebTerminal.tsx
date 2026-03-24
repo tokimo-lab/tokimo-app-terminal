@@ -1,11 +1,17 @@
 /**
  * Interactive web terminal backed by a WebSocket PTY session on the Rust server.
  * Uses xterm.js v6 with fit/web-links/search addons.
+ *
+ * Session persistence: the backend keeps the PTY alive across WS disconnects.
+ * The session_id is stored in sessionStorage so page refreshes reconnect to
+ * the same shell with scrollback replay.
  */
 
 import "@xterm/xterm/css/xterm.css";
 import type { Terminal } from "@xterm/xterm";
 import { useEffect, useRef, useState } from "react";
+
+const SESSION_STORAGE_KEY = "tokimo-terminal-session-id";
 
 interface WebTerminalProps {
   /** WebSocket URL for the PTY endpoint, e.g. ws://localhost:5678/api/terminal/ws */
@@ -14,6 +20,8 @@ interface WebTerminalProps {
   height?: string;
   /** Minimum height in px. Default: 300 */
   minHeight?: number;
+  /** Remove border, rounded corners for embedding. Default: false */
+  borderless?: boolean;
 }
 
 type ConnectionStatus = "connecting" | "connected" | "disconnected" | "error";
@@ -22,11 +30,13 @@ export default function WebTerminal({
   wsUrl,
   height = "calc(100vh - 200px)",
   minHeight = 300,
+  borderless = false,
 }: WebTerminalProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const termRef = useRef<Terminal | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const fitAddonRef = useRef<{ fit: () => void } | null>(null);
+  const roRef = useRef<ResizeObserver | null>(null);
   const [status, setStatus] = useState<ConnectionStatus>("connecting");
 
   useEffect(() => {
@@ -100,7 +110,12 @@ export default function WebTerminal({
       fitAddonRef.current = fitAddon;
 
       // ── WebSocket connection ──────────────────────────────────────────
-      ws = new WebSocket(wsUrl);
+      const savedSession = sessionStorage.getItem(SESSION_STORAGE_KEY);
+      const connectUrl = savedSession
+        ? `${wsUrl}${wsUrl.includes("?") ? "&" : "?"}session_id=${encodeURIComponent(savedSession)}`
+        : wsUrl;
+
+      ws = new WebSocket(connectUrl);
       ws.binaryType = "arraybuffer";
       wsRef.current = ws;
 
@@ -114,10 +129,16 @@ export default function WebTerminal({
 
       ws.onmessage = (ev: MessageEvent) => {
         if (disposed) return;
-        if (ev.data instanceof ArrayBuffer) {
-          term.write(new Uint8Array(ev.data));
-        } else if (typeof ev.data === "string") {
+        if (typeof ev.data === "string") {
+          // Control message: \x02 prefix = session_id assignment
+          if (ev.data.startsWith("\x02")) {
+            const sid = ev.data.slice(1);
+            sessionStorage.setItem(SESSION_STORAGE_KEY, sid);
+            return;
+          }
           term.write(ev.data);
+        } else if (ev.data instanceof ArrayBuffer) {
+          term.write(new Uint8Array(ev.data));
         }
       };
 
@@ -167,12 +188,17 @@ export default function WebTerminal({
         }
       });
       ro.observe(containerRef.current);
+      roRef.current = ro;
     };
 
     init();
 
     return () => {
       disposed = true;
+      if (roRef.current) {
+        roRef.current.disconnect();
+        roRef.current = null;
+      }
       if (wsRef.current) {
         wsRef.current.close();
         wsRef.current = null;
@@ -186,34 +212,35 @@ export default function WebTerminal({
   }, [wsUrl]);
 
   return (
-    <div className="relative">
-      {/* Status indicator */}
-      <div className="absolute top-2 right-3 z-10 flex items-center gap-1.5 text-xs">
-        <span
-          className={`inline-block h-2 w-2 rounded-full ${
-            status === "connected"
-              ? "bg-green-500"
+    <div className={`relative ${borderless ? "flex h-full flex-col" : ""}`}>
+      {!borderless && (
+        <div className="absolute top-2 right-3 z-10 flex items-center gap-1.5 text-xs">
+          <span
+            className={`inline-block h-2 w-2 rounded-full ${
+              status === "connected"
+                ? "bg-green-500"
+                : status === "connecting"
+                  ? "bg-yellow-500 animate-pulse"
+                  : status === "error"
+                    ? "bg-red-500"
+                    : "bg-zinc-500"
+            }`}
+          />
+          <span className="text-zinc-400">
+            {status === "connected"
+              ? "已连接"
               : status === "connecting"
-                ? "bg-yellow-500 animate-pulse"
+                ? "连接中..."
                 : status === "error"
-                  ? "bg-red-500"
-                  : "bg-zinc-500"
-          }`}
-        />
-        <span className="text-zinc-400">
-          {status === "connected"
-            ? "已连接"
-            : status === "connecting"
-              ? "连接中..."
-              : status === "error"
-                ? "连接失败"
-                : "已断开"}
-        </span>
-      </div>
+                  ? "连接失败"
+                  : "已断开"}
+          </span>
+        </div>
+      )}
       <div
         ref={containerRef}
-        className="overflow-hidden rounded-lg border border-zinc-800 bg-[#09090b] [&_.xterm-viewport]:!overflow-y-auto"
-        style={{ height, minHeight }}
+        className={`overflow-hidden bg-[#09090b] [&_.xterm-viewport]:!overflow-y-auto [&_.xterm]:!p-0 ${borderless ? "min-h-0 flex-1" : "rounded-lg border border-zinc-800"}`}
+        style={borderless ? undefined : { height, minHeight }}
       />
     </div>
   );

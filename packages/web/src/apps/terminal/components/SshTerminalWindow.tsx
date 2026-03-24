@@ -24,6 +24,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useWindowManager } from "../../contexts/WindowManagerContext";
 import { api } from "../../generated/rust-api";
 import type { SshHostStats } from "../../generated/rust-types/SshHostStats";
+import { useWindowActive } from "../window-manager/WindowActiveContext";
 import SshDockerPanel from "./SshDockerPanel";
 import type { UploadItem, UploadQueue } from "./SshFileTree";
 import SshFileTree from "./SshFileTree";
@@ -271,9 +272,10 @@ export default function SshTerminalWindow({
 
   // ── Host stats polling ──
   const [hostStats, setHostStats] = useState<SshHostStats | null>(null);
+  const windowActive = useWindowActive();
 
   useEffect(() => {
-    if (status !== "connected") return;
+    if (status !== "connected" || !windowActive) return;
     let cancelled = false;
 
     const fetchStats = async () => {
@@ -291,7 +293,7 @@ export default function SshTerminalWindow({
       cancelled = true;
       clearInterval(id);
     };
-  }, [terminalId, status]);
+  }, [terminalId, status, windowActive]);
 
   const handleDuplicate = useCallback(() => {
     // Open a fresh, independent session that starts in the file browser's
@@ -425,26 +427,37 @@ export default function SshTerminalWindow({
 
       ws.onopen = () => {
         if (disposed) return;
-        setStatus("connected");
+        // Status stays "connecting" until we receive the SSH_READY marker.
         sendResize(ws!, term.cols, term.rows);
-        // If duplicated from another window, navigate to its directory once.
-        const cwd = initialCwdRef.current;
-        if (cwd && cwd !== "/") {
-          initialCwdRef.current = null; // only send once (not on reconnect)
-          setTimeout(() => {
-            if (!disposed && ws!.readyState === WebSocket.OPEN) {
-              const escaped = `'${cwd.replace(/'/g, "'\\''")}' `;
-              ws!.send(new TextEncoder().encode(`cd ${escaped}\n`));
-            }
-          }, 400);
-        }
-        term.focus();
       };
 
       ws.onmessage = (ev: MessageEvent) => {
         if (disposed) return;
         if (ev.data instanceof ArrayBuffer) {
-          term.write(new Uint8Array(ev.data));
+          const buf = new Uint8Array(ev.data);
+          // Detect SSH_READY marker: "\x01SSH_READY\x01"
+          if (
+            buf.length === 11 &&
+            buf[0] === 0x01 &&
+            buf[10] === 0x01 &&
+            new TextDecoder().decode(buf.subarray(1, 10)) === "SSH_READY"
+          ) {
+            setStatus("connected");
+            term.focus();
+            // If duplicated from another window, navigate to its directory once.
+            const cwd = initialCwdRef.current;
+            if (cwd && cwd !== "/") {
+              initialCwdRef.current = null;
+              setTimeout(() => {
+                if (!disposed && ws!.readyState === WebSocket.OPEN) {
+                  const escaped = `'${cwd.replace(/'/g, "'\\''")}' `;
+                  ws!.send(new TextEncoder().encode(`cd ${escaped}\n`));
+                }
+              }, 100);
+            }
+            return;
+          }
+          term.write(buf);
         } else if (typeof ev.data === "string") {
           term.write(ev.data);
         }
@@ -452,7 +465,8 @@ export default function SshTerminalWindow({
 
       ws.onclose = () => {
         if (disposed) return;
-        setStatus("disconnected");
+        // If we never reached "connected", this is an auth/connection error.
+        setStatus((prev) => (prev === "connecting" ? "error" : "disconnected"));
         term.write("\r\n\x1b[33m[连接已断开]\x1b[0m\r\n");
       };
 
@@ -614,7 +628,7 @@ export default function SshTerminalWindow({
       />
 
       {/* ── Drag handle ── */}
-      {!panelCollapsed && (
+      {connected && !panelCollapsed && (
         // biome-ignore lint/a11y/noStaticElementInteractions: drag resize handle
         <div
           className="shrink-0 h-1 cursor-row-resize bg-zinc-800 hover:bg-zinc-600 active:bg-emerald-600 transition-colors"
@@ -622,99 +636,107 @@ export default function SshTerminalWindow({
         />
       )}
 
-      {/* ── Bottom: tabbed panel ── */}
-      <div
-        className="shrink-0 bg-zinc-900/80 flex flex-col overflow-hidden"
-        style={panelCollapsed ? undefined : { height: panelHeight }}
-      >
-        {/* Tab bar — click blank area to collapse/expand */}
-        {/* biome-ignore lint/a11y/noStaticElementInteractions: drag/click area */}
-        {/* biome-ignore lint/a11y/useKeyWithClickEvents: collapse toggle, keyboard not needed */}
+      {/* ── Bottom: tabbed panel (hidden until connected) ── */}
+      {connected && (
         <div
-          className="flex items-center shrink-0 border-b border-zinc-800/60 cursor-pointer"
-          onClick={handleToggleCollapse}
+          className="shrink-0 bg-zinc-900/80 flex flex-col overflow-hidden"
+          style={panelCollapsed ? undefined : { height: panelHeight }}
         >
-          <TabButton
-            active={bottomTab === "files"}
-            collapsed={panelCollapsed}
-            onClick={(e) => {
-              e.stopPropagation();
-              handleTabButtonClick("files");
-            }}
-            icon={<FolderTree className="h-3 w-3" />}
-            label="文件"
-            badge={activeUploadCount > 0 ? activeUploadCount : undefined}
-          />
-          <TabButton
-            active={bottomTab === "processes"}
-            collapsed={panelCollapsed}
-            onClick={(e) => {
-              e.stopPropagation();
-              handleTabButtonClick("processes");
-            }}
-            icon={<ListTree className="h-3 w-3" />}
-            label="进程"
-          />
-          <TabButton
-            active={bottomTab === "storage"}
-            collapsed={panelCollapsed}
-            onClick={(e) => {
-              e.stopPropagation();
-              handleTabButtonClick("storage");
-            }}
-            icon={<HardDrive className="h-3 w-3" />}
-            label="存储"
-          />
-          <TabButton
-            active={bottomTab === "network"}
-            collapsed={panelCollapsed}
-            onClick={(e) => {
-              e.stopPropagation();
-              handleTabButtonClick("network");
-            }}
-            icon={<Network className="h-3 w-3" />}
-            label="网络"
-          />
-          <TabButton
-            active={bottomTab === "docker"}
-            collapsed={panelCollapsed}
-            onClick={(e) => {
-              e.stopPropagation();
-              handleTabButtonClick("docker");
-            }}
-            icon={<Container className="h-3 w-3" />}
-            label="Docker"
-          />
-          {/* flex-1 spacer makes the rest of the bar clickable */}
-          <div className="flex-1" />
-        </div>
-
-        {/* Tab content - hidden when collapsed */}
-        {!panelCollapsed && (
-          <div className="flex-1 overflow-hidden">
-            {bottomTab === "files" ? (
-              <SshFileTree
-                terminalId={terminalId}
-                connected={connected}
-                uploadQueue={uploadQueue}
-                onUploadFiles={handleUploadFiles}
-                connectionLabel={win?.title}
-                onPathChange={(p) => {
-                  fileBrowserPathRef.current = p;
-                }}
-              />
-            ) : bottomTab === "processes" ? (
-              <SshProcessList terminalId={terminalId} connected={connected} />
-            ) : bottomTab === "docker" ? (
-              <SshDockerPanel terminalId={terminalId} connected={connected} />
-            ) : bottomTab === "network" ? (
-              <SshNetworkPanel terminalId={terminalId} connected={connected} />
-            ) : (
-              <SshStoragePanel terminalId={terminalId} connected={connected} />
-            )}
+          {/* Tab bar — click blank area to collapse/expand */}
+          {/* biome-ignore lint/a11y/noStaticElementInteractions: drag/click area */}
+          {/* biome-ignore lint/a11y/useKeyWithClickEvents: collapse toggle, keyboard not needed */}
+          <div
+            className="flex items-center shrink-0 border-b border-zinc-800/60 cursor-pointer"
+            onClick={handleToggleCollapse}
+          >
+            <TabButton
+              active={bottomTab === "files"}
+              collapsed={panelCollapsed}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleTabButtonClick("files");
+              }}
+              icon={<FolderTree className="h-3 w-3" />}
+              label="文件"
+              badge={activeUploadCount > 0 ? activeUploadCount : undefined}
+            />
+            <TabButton
+              active={bottomTab === "processes"}
+              collapsed={panelCollapsed}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleTabButtonClick("processes");
+              }}
+              icon={<ListTree className="h-3 w-3" />}
+              label="进程"
+            />
+            <TabButton
+              active={bottomTab === "storage"}
+              collapsed={panelCollapsed}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleTabButtonClick("storage");
+              }}
+              icon={<HardDrive className="h-3 w-3" />}
+              label="存储"
+            />
+            <TabButton
+              active={bottomTab === "network"}
+              collapsed={panelCollapsed}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleTabButtonClick("network");
+              }}
+              icon={<Network className="h-3 w-3" />}
+              label="网络"
+            />
+            <TabButton
+              active={bottomTab === "docker"}
+              collapsed={panelCollapsed}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleTabButtonClick("docker");
+              }}
+              icon={<Container className="h-3 w-3" />}
+              label="Docker"
+            />
+            {/* flex-1 spacer makes the rest of the bar clickable */}
+            <div className="flex-1" />
           </div>
-        )}
-      </div>
+
+          {/* Tab content - hidden when collapsed */}
+          {!panelCollapsed && (
+            <div className="flex-1 overflow-hidden">
+              {bottomTab === "files" ? (
+                <SshFileTree
+                  terminalId={terminalId}
+                  connected={connected}
+                  uploadQueue={uploadQueue}
+                  onUploadFiles={handleUploadFiles}
+                  connectionLabel={win?.title}
+                  onPathChange={(p) => {
+                    fileBrowserPathRef.current = p;
+                  }}
+                />
+              ) : bottomTab === "processes" ? (
+                <SshProcessList terminalId={terminalId} connected={connected} />
+              ) : bottomTab === "docker" ? (
+                <SshDockerPanel terminalId={terminalId} connected={connected} />
+              ) : bottomTab === "network" ? (
+                <SshNetworkPanel
+                  terminalId={terminalId}
+                  connected={connected}
+                />
+              ) : (
+                <SshStoragePanel
+                  terminalId={terminalId}
+                  connected={connected}
+                />
+              )}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
