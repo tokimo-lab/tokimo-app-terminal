@@ -8,7 +8,7 @@ use crate::db::entities::ssh_terminals;
 #[ts(export)]
 pub struct SshTerminalOutput {
     pub id: String,
-    pub library_id: String,
+    pub app_id: String,
     /// Linked SFTP file system ID (for FileManager)
     pub file_system_id: Option<String>,
     pub name: String,
@@ -34,7 +34,7 @@ impl From<ssh_terminals::Model> for SshTerminalOutput {
     fn from(m: ssh_terminals::Model) -> Self {
         Self {
             id: m.id.to_string(),
-            library_id: m.library_id.to_string(),
+            app_id: m.app_id.to_string(),
             file_system_id: m.file_system_id.map(|id| id.to_string()),
             name: m.name,
             host: m.host,

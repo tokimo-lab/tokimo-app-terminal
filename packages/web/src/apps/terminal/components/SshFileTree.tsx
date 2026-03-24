@@ -1,7 +1,7 @@
 /**
  * Remote file browser panel for SSH terminal.
  * Lists files via the /api/ssh-terminals/{id}/ls endpoint.
- * Reuses the visual components from the media-library FileManager
+ * Reuses the visual components from the app FileManager
  * (FileGrid, FileBreadcrumb, FileToolbar).
  *
  * Supports: navigate, new folder, rename, delete, download,

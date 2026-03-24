@@ -1,5 +1,5 @@
 /**
- * Terminal 类型媒体库页面
+ * Terminal 类型应用页面
  *
  * 显示 SSH 终端连接列表，支持新建/编辑/删除连接。
  * 双击连接打开全局任务窗口中的 xterm.js SSH 终端。
@@ -18,21 +18,21 @@ import {
   type UpdateSshTerminalInput,
 } from "../../generated/rust-api";
 
-export default function TerminalLibraryPage() {
-  const { id: libraryId } = useParams<{ id: string }>();
+export default function TerminalAppPage() {
+  const { id: appId } = useParams<{ id: string }>();
   const { openWindow } = useWindowManager();
   const [formOpen, setFormOpen] = useState(false);
   const [editingTerminal, setEditingTerminal] =
     useState<SshTerminalOutput | null>(null);
 
-  const libraryQuery = api.mediaLibrary.getById.useQuery(
-    { id: libraryId! },
-    { enabled: !!libraryId },
+  const libraryQuery = api.app.getById.useQuery(
+    { id: appId! },
+    { enabled: !!appId },
   );
 
   const terminalsQuery = api.sshTerminal.list.useQuery(
-    { libraryId: libraryId! },
-    { enabled: !!libraryId },
+    { appId: appId! },
+    { enabled: !!appId },
   );
 
   const createMutation = api.sshTerminal.create.useMutation({
@@ -84,7 +84,7 @@ export default function TerminalLibraryPage() {
       openWindow({
         type: "terminal",
         title: `${terminal.username}@${terminal.host}`,
-        libraryId,
+        appId,
         sourceType: "ssh_terminal",
         sourceId: terminal.id,
         metadata: {
@@ -95,7 +95,7 @@ export default function TerminalLibraryPage() {
         },
       });
     },
-    [openWindow, libraryId],
+    [openWindow, appId],
   );
 
   if (libraryQuery.isLoading || terminalsQuery.isLoading) {
@@ -221,7 +221,7 @@ export default function TerminalLibraryPage() {
         footer={null}
       >
         <SshTerminalForm
-          libraryId={libraryId!}
+          appId={appId!}
           terminal={editingTerminal}
           onSubmit={handleFormSubmit}
           onCancel={() => {

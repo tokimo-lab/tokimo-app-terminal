@@ -49,7 +49,7 @@ async fn get_creds(state: &AppState, id: &str) -> Result<SshCredentials, AppErro
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CreateSshTerminalInput {
-    pub library_id: String,
+    pub app_id: String,
     pub name: String,
     pub host: String,
     pub port: Option<i32>,
@@ -83,7 +83,7 @@ pub struct UpdateSshTerminalInput {
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ListByLibraryQuery {
-    pub library_id: String,
+    pub app_id: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -186,11 +186,11 @@ pub async fn list_ssh_terminals(
     AuthUser(_): AuthUser,
     Query(query): Query<ListByLibraryQuery>,
 ) -> Result<Json<ApiResponse<Vec<crate::db::models::ssh_terminal::SshTerminalOutput>>>, AppError> {
-    let library_id: Uuid = query
-        .library_id
+    let app_id: Uuid = query
+        .app_id
         .parse()
-        .map_err(|_| AppError::BadRequest("invalid library_id".into()))?;
-    let terminals = SshTerminalRepo::list_by_library(&state.db, library_id).await?;
+        .map_err(|_| AppError::BadRequest("invalid app_id".into()))?;
+    let terminals = SshTerminalRepo::list_by_app(&state.db, app_id).await?;
     Ok(ok(terminals))
 }
 
@@ -211,13 +211,13 @@ pub async fn create_ssh_terminal(
     AuthUser(_): AuthUser,
     Json(input): Json<CreateSshTerminalInput>,
 ) -> Result<Json<ApiResponse<crate::db::models::ssh_terminal::SshTerminalOutput>>, AppError> {
-    let library_id: Uuid = input
-        .library_id
+    let app_id: Uuid = input
+        .app_id
         .parse()
-        .map_err(|_| AppError::BadRequest("invalid library_id".into()))?;
+        .map_err(|_| AppError::BadRequest("invalid app_id".into()))?;
     let terminal = SshTerminalRepo::create(
         &state.db,
-        library_id,
+        app_id,
         &input.name,
         &input.host,
         input.port.unwrap_or(22),

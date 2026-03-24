@@ -7,7 +7,7 @@ import type {
 } from "../../generated/rust-api";
 
 interface SshTerminalFormProps {
-  libraryId: string;
+  appId: string;
   terminal: SshTerminalOutput | null;
   onSubmit: (data: CreateSshTerminalInput | UpdateSshTerminalInput) => void;
   onCancel?: () => void;
@@ -20,7 +20,7 @@ const AUTH_METHODS = [
 ];
 
 export default function SshTerminalForm({
-  libraryId,
+  appId,
   terminal,
   onSubmit,
   onCancel,
@@ -60,7 +60,7 @@ export default function SshTerminalForm({
       onSubmit(data);
     } else {
       const data: CreateSshTerminalInput = {
-        libraryId,
+        appId,
         name,
         host,
         port: Number(port) || 22,

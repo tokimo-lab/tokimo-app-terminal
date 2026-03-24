@@ -10,13 +10,13 @@ use crate::error::AppError;
 pub struct SshTerminalRepo;
 
 impl SshTerminalRepo {
-    /// List all SSH terminals in a library, ordered by sort_order.
-    pub async fn list_by_library(
+    /// List all SSH terminals in an app, ordered by sort_order.
+    pub async fn list_by_app(
         db: &DatabaseConnection,
-        library_id: Uuid,
+        app_id: Uuid,
     ) -> Result<Vec<SshTerminalOutput>, AppError> {
         let models = ssh_terminals::Entity::find()
-            .filter(ssh_terminals::Column::LibraryId.eq(library_id))
+            .filter(ssh_terminals::Column::AppId.eq(app_id))
             .order_by_asc(ssh_terminals::Column::SortOrder)
             .order_by_asc(ssh_terminals::Column::CreatedAt)
             .all(db)
@@ -50,7 +50,7 @@ impl SshTerminalRepo {
     /// Create a new SSH terminal.
     pub async fn create(
         db: &DatabaseConnection,
-        library_id: Uuid,
+        app_id: Uuid,
         name: &str,
         host: &str,
         port: i32,
@@ -66,7 +66,7 @@ impl SshTerminalRepo {
         let now = chrono::Utc::now().fixed_offset();
         let model = ssh_terminals::ActiveModel {
             id: Set(Uuid::new_v4()),
-            library_id: Set(library_id),
+            app_id: Set(app_id),
             file_system_id: Set(None),
             name: Set(name.to_string()),
             host: Set(host.to_string()),

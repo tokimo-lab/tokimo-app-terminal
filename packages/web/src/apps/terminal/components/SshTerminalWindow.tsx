@@ -299,7 +299,7 @@ export default function SshTerminalWindow({
     openWindow({
       type: "terminal",
       title: win?.title || terminalId,
-      libraryId: win?.libraryId,
+      appId: win?.appId,
       sourceType: win?.sourceType,
       sourceId: win?.sourceId,
       metadata: {
