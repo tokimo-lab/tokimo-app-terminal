@@ -563,6 +563,9 @@ export default function SshFileTree({
           {selectedPaths.size > 0 &&
             ` · ${selectedPaths.size} ${t("fileManager.selected")}`}
         </span>
+        <span className="truncate ml-4 font-mono opacity-80">
+          {`ssh://${connectionLabel || ""}${currentPath}`}
+        </span>
       </div>
 
       {/* Upload progress panel — shown when there are uploads */}
