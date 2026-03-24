@@ -96,7 +96,8 @@ async fn handle_terminal_session(
                 }
             };
 
-            let mut cmd = CommandBuilder::new("bash");
+            let shell = std::env::var("SHELL").unwrap_or_else(|_| "bash".to_string());
+            let mut cmd = CommandBuilder::new(&shell);
             cmd.env("TERM", "xterm-256color");
             cmd.env("COLORTERM", "truecolor");
 

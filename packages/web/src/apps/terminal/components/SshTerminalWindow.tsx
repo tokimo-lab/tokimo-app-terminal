@@ -343,8 +343,9 @@ export default function SshTerminalWindow({
       containerRef.current.innerHTML = "";
 
       const term = new Terminal({
+        allowTransparency: true,
         theme: {
-          background: "#09090b",
+          background: "rgba(0, 0, 0, 0)",
           foreground: "#e4e4e7",
           cursor: "#a1a1aa",
           cursorAccent: "#09090b",
@@ -548,12 +549,9 @@ export default function SshTerminalWindow({
         : "已断开";
 
   return (
-    <div
-      ref={wrapperRef}
-      className="relative h-full w-full flex flex-col bg-[#09090b]"
-    >
+    <div ref={wrapperRef} className="relative h-full w-full flex flex-col">
       {/* ── Top bar: status + CPU/memory gauges + reconnect ── */}
-      <div className="flex items-center justify-between px-3 py-1.5 bg-zinc-900/80 border-b border-zinc-800 shrink-0">
+      <div className="flex items-center justify-between px-3 py-1.5 bg-zinc-900/40 border-b border-zinc-800/60 shrink-0">
         <div className="flex items-center gap-3 text-xs">
           <div className="flex items-center gap-1.5">
             <span
@@ -623,14 +621,14 @@ export default function SshTerminalWindow({
       {/* ── Terminal area ── */}
       <div
         ref={containerRef}
-        className="flex-1 overflow-hidden [&_.xterm-viewport]:!overflow-y-auto"
+        className="flex-1 overflow-hidden [&_.xterm-viewport]:!overflow-y-auto [&_.xterm-viewport]:!bg-transparent [&_.xterm]:!bg-transparent"
       />
 
       {/* ── Drag handle ── */}
       {connected && !panelCollapsed && (
         // biome-ignore lint/a11y/noStaticElementInteractions: drag resize handle
         <div
-          className="shrink-0 h-1 cursor-row-resize bg-zinc-800 hover:bg-zinc-600 active:bg-emerald-600 transition-colors"
+          className="shrink-0 h-1 cursor-row-resize bg-zinc-800/60 hover:bg-zinc-600/60 active:bg-emerald-600/80 transition-colors"
           onMouseDown={handleDragStart}
         />
       )}
@@ -638,14 +636,14 @@ export default function SshTerminalWindow({
       {/* ── Bottom: tabbed panel (hidden until connected) ── */}
       {connected && (
         <div
-          className="shrink-0 bg-zinc-900/80 flex flex-col overflow-hidden"
+          className="shrink-0 bg-zinc-900/40 flex flex-col overflow-hidden"
           style={panelCollapsed ? undefined : { height: panelHeight }}
         >
           {/* Tab bar — click blank area to collapse/expand */}
           {/* biome-ignore lint/a11y/noStaticElementInteractions: drag/click area */}
           {/* biome-ignore lint/a11y/useKeyWithClickEvents: collapse toggle, keyboard not needed */}
           <div
-            className="flex items-center shrink-0 border-b border-zinc-800/60 cursor-pointer"
+            className="flex items-center shrink-0 border-b border-zinc-800/40 cursor-pointer"
             onClick={handleToggleCollapse}
           >
             <TabButton

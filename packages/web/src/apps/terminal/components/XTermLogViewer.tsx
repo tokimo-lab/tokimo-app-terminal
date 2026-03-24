@@ -13,7 +13,7 @@ interface XTermLogViewerProps {
   lines: string[];
   /** Whether the log is live (enables auto-scroll to bottom). */
   isLive?: boolean;
-  /** CSS height. Default: calc(100vh - 380px) */
+  /** CSS height. Default: 100% */
   height?: string;
   /** Minimum height in px. Default: 200 */
   minHeight?: number;
@@ -26,7 +26,7 @@ interface XTermLogViewerProps {
 export default function XTermLogViewer({
   lines,
   isLive = false,
-  height = "calc(100vh - 380px)",
+  height = "100%",
   minHeight = 200,
   loading = false,
   showRunningIndicator = false,

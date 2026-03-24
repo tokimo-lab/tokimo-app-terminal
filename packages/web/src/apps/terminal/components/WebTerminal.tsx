@@ -16,7 +16,7 @@ const SESSION_STORAGE_KEY = "tokimo-terminal-session-id";
 interface WebTerminalProps {
   /** WebSocket URL for the PTY endpoint, e.g. ws://localhost:5678/api/terminal/ws */
   wsUrl: string;
-  /** CSS height. Default: calc(100vh - 200px) */
+  /** CSS height. Default: 100% */
   height?: string;
   /** Minimum height in px. Default: 300 */
   minHeight?: number;
@@ -28,7 +28,7 @@ type ConnectionStatus = "connecting" | "connected" | "disconnected" | "error";
 
 export default function WebTerminal({
   wsUrl,
-  height = "calc(100vh - 200px)",
+  height = "100%",
   minHeight = 300,
   borderless = false,
 }: WebTerminalProps) {
@@ -53,8 +53,9 @@ export default function WebTerminal({
       if (disposed || !containerRef.current) return;
 
       const term = new Terminal({
+        allowTransparency: true,
         theme: {
-          background: "#09090b",
+          background: "rgba(0, 0, 0, 0)",
           foreground: "#e4e4e7",
           cursor: "#a1a1aa",
           cursorAccent: "#09090b",
@@ -239,7 +240,7 @@ export default function WebTerminal({
       )}
       <div
         ref={containerRef}
-        className={`overflow-hidden bg-[#09090b] [&_.xterm-viewport]:!overflow-y-auto [&_.xterm]:!p-0 ${borderless ? "min-h-0 flex-1" : "rounded-lg border border-zinc-800"}`}
+        className={`overflow-hidden [&_.xterm-viewport]:!overflow-y-auto [&_.xterm-viewport]:!bg-transparent [&_.xterm]:!bg-transparent [&_.xterm]:!p-0 ${borderless ? "min-h-0 flex-1" : "rounded-lg border border-zinc-800"}`}
         style={borderless ? undefined : { height, minHeight }}
       />
     </div>

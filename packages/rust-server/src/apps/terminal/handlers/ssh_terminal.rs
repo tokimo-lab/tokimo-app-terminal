@@ -18,6 +18,7 @@ use uuid::Uuid;
 
 use crate::db::repos::ssh_terminal_repo::SshTerminalRepo;
 use crate::error::AppError;
+use crate::handlers::media::stream::mime_for;
 use crate::handlers::user::AuthUser;
 use crate::handlers::{ok, ok_empty, ApiResponse};
 use crate::AppState;
@@ -602,15 +603,16 @@ pub async fn ssh_terminal_download(
             .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))
     });
 
+    let content_type = mime_for(&query.path);
+    // Use inline disposition for previewable types (PDF, images, etc.)
+    let disposition = if content_type != "application/octet-stream" {
+        format!("inline; filename=\"{safe_filename}\"")
+    } else {
+        format!("attachment; filename=\"{safe_filename}\"")
+    };
     let headers = [
-        (
-            axum::http::header::CONTENT_TYPE,
-            "application/octet-stream".to_string(),
-        ),
-        (
-            axum::http::header::CONTENT_DISPOSITION,
-            format!("attachment; filename=\"{safe_filename}\""),
-        ),
+        (axum::http::header::CONTENT_TYPE, content_type.to_string()),
+        (axum::http::header::CONTENT_DISPOSITION, disposition),
     ];
 
     Ok((headers, Body::from_stream(byte_stream)))
