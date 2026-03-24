@@ -8,9 +8,8 @@
 import { Button, Empty, Modal, Spin } from "@tokiomo/components";
 import { Monitor, Pencil, Play, Plus, Trash2 } from "lucide-react";
 import { useCallback, useState } from "react";
-import { useParams } from "react-router-dom";
 import SshTerminalForm from "../../components/terminal/SshTerminalForm";
-import { useWindowManager } from "../../contexts/WindowManagerContext";
+import { useWindowNav } from "../../components/window-manager/WindowNavContext";
 import {
   api,
   type CreateSshTerminalInput,
@@ -19,8 +18,8 @@ import {
 } from "../../generated/rust-api";
 
 export default function TerminalAppPage() {
-  const { id: appId } = useParams<{ id: string }>();
-  const { openWindow } = useWindowManager();
+  const { params, openWindow } = useWindowNav();
+  const appId = params.appId as string | undefined;
   const [formOpen, setFormOpen] = useState(false);
   const [editingTerminal, setEditingTerminal] =
     useState<SshTerminalOutput | null>(null);
@@ -90,7 +89,7 @@ export default function TerminalAppPage() {
         metadata: {
           sshTerminalId: terminal.id,
           sshHost: terminal.host,
-          sshFileSystemId: terminal.fileSystemId,
+          sshFileSystemId: terminal.fileSystemId ?? undefined,
           sshSessionId: crypto.randomUUID(),
         },
       });

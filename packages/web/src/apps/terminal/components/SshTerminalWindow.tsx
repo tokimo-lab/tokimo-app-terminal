@@ -64,14 +64,13 @@ export default function SshTerminalWindow({
 }: SshTerminalWindowProps) {
   const { windows, openWindow, updateMetadata } = useWindowManager();
   const win = windows.find((w) => w.id === windowId);
-  const savedPanelHeight = (win?.metadata.sshPanelHeight as number) || 192;
-  const savedPanelCollapsed =
-    (win?.metadata.sshPanelCollapsed as boolean) ?? false;
+  const savedPanelHeight = win?.metadata.sshPanelHeight || 192;
+  const savedPanelCollapsed = win?.metadata.sshPanelCollapsed ?? false;
 
   // ── Session ID: stable UUID that survives page refreshes via metadata ──
   // Use the one already persisted in metadata, or generate a new one on first open.
   const sessionIdRef = useRef<string>(
-    (win?.metadata.sshSessionId as string | undefined) || crypto.randomUUID(),
+    win?.metadata.sshSessionId || crypto.randomUUID(),
   );
   // Persist once on first render if it wasn't already in metadata.
   const sessionIdPersisted = useRef(false);
@@ -86,7 +85,7 @@ export default function SshTerminalWindow({
   // Set from metadata when duplicating a session so the new shell lands in the
   // same directory the file browser was showing in the source window.
   const initialCwdRef = useRef<string | null>(
-    (win?.metadata.sshInitialCwd as string | undefined) ?? null,
+    win?.metadata.sshInitialCwd ?? null,
   );
   // Track the file-browser's current directory so Duplicate can carry it over.
   const fileBrowserPathRef = useRef<string>("/");
@@ -306,8 +305,8 @@ export default function SshTerminalWindow({
       sourceId: win?.sourceId,
       metadata: {
         sshTerminalId: terminalId,
-        sshHost: win?.metadata.sshHost as string | undefined,
-        sshFileSystemId: win?.metadata.sshFileSystemId as string | undefined,
+        sshHost: win?.metadata.sshHost,
+        sshFileSystemId: win?.metadata.sshFileSystemId,
         sshSessionId: crypto.randomUUID(),
         sshInitialCwd: fileBrowserPathRef.current,
       },
