@@ -89,6 +89,13 @@ export default function SshTerminalWindow({
   );
   // Track the file-browser's current directory so Duplicate can carry it over.
   const fileBrowserPathRef = useRef<string>("/");
+  const handleFileBrowserPathChange = useCallback(
+    (p: string) => {
+      fileBrowserPathRef.current = p;
+      updateMetadata(windowId, { sshInitialCwd: p });
+    },
+    [windowId, updateMetadata],
+  );
 
   const containerRef = useRef<HTMLDivElement>(null);
   const termRef = useRef<Terminal | null>(null);
@@ -712,10 +719,7 @@ export default function SshTerminalWindow({
                   onUploadFiles={handleUploadFiles}
                   connectionLabel={win?.title}
                   initialPath={win?.metadata.sshInitialCwd}
-                  onPathChange={(p) => {
-                    fileBrowserPathRef.current = p;
-                    updateMetadata(windowId, { sshInitialCwd: p });
-                  }}
+                  onPathChange={handleFileBrowserPathChange}
                 />
               ) : bottomTab === "processes" ? (
                 <SshProcessList terminalId={terminalId} connected={connected} />
