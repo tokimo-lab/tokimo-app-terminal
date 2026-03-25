@@ -103,7 +103,7 @@ function TerminalCardGrid({ appId }: { appId: string | undefined }) {
             {/* Content */}
             <div className="flex-1 px-3.5 py-2.5">
               <div className="flex items-center gap-2">
-                <Monitor className="h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
+                <Monitor className="h-4 w-4 shrink-0 text-[var(--accent)]" />
                 <span className="truncate font-medium text-sm text-[var(--text-primary)]">
                   {terminal.name}
                 </span>
@@ -124,7 +124,7 @@ function TerminalCardGrid({ appId }: { appId: string | undefined }) {
                   e.stopPropagation();
                   handleOpenTerminal(terminal);
                 }}
-                className="flex-1 cursor-pointer border-r border-[var(--glass-border)] py-2 text-center text-xs font-medium text-[var(--text-secondary)] transition-colors hover:text-emerald-500 hover:bg-[var(--bg-glass-hover)]"
+                className="flex-1 cursor-pointer border-r border-[var(--glass-border)] py-2 text-center text-xs font-medium text-[var(--text-secondary)] transition-colors hover:text-[var(--accent)] hover:bg-[var(--bg-glass-hover)]"
               >
                 连接
               </button>
@@ -148,7 +148,7 @@ function TerminalCardGrid({ appId }: { appId: string | undefined }) {
                   e.stopPropagation();
                   handleDelete(terminal);
                 }}
-                className="flex-1 cursor-pointer py-2 text-center text-xs font-medium text-red-500 transition-colors hover:text-red-400 hover:bg-red-500/5"
+                className="flex-1 cursor-pointer py-2 text-center text-xs font-medium text-[var(--accent-text)] transition-colors hover:text-[var(--accent)] hover:bg-[var(--accent-subtle)]"
               >
                 删除
               </button>
@@ -207,7 +207,7 @@ function TerminalCreateView({ appId }: { appId: string }) {
         <button
           type="button"
           onClick={goBack}
-          className="flex items-center justify-center w-8 h-8 rounded-lg cursor-pointer hover:bg-black/[0.06] dark:hover:bg-white/[0.08] transition-colors"
+          className="flex h-8 w-8 items-center justify-center rounded-lg text-[var(--text-secondary)] transition-colors hover:bg-[var(--accent-subtle)] hover:text-[var(--accent)] cursor-pointer"
         >
           <ArrowLeft size={18} />
         </button>
@@ -282,7 +282,7 @@ function TerminalEditView({
         <button
           type="button"
           onClick={goBack}
-          className="flex items-center justify-center w-8 h-8 rounded-lg cursor-pointer hover:bg-black/[0.06] dark:hover:bg-white/[0.08] transition-colors"
+          className="flex h-8 w-8 items-center justify-center rounded-lg text-[var(--text-secondary)] transition-colors hover:bg-[var(--accent-subtle)] hover:text-[var(--accent)] cursor-pointer"
         >
           <ArrowLeft size={18} />
         </button>
