@@ -12,6 +12,7 @@ import {
   Modal,
   Spin,
   useContextMenu,
+  useToast,
 } from "@tokiomo/components";
 import {
   CheckCircle,
@@ -29,6 +30,15 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useWindowManager } from "../../contexts/WindowManagerContext";
 import { api } from "../../generated/rust-api";
+import {
+  buildDragPayload,
+  buildTransferRequest,
+  hasDragPayload,
+  isCrossStorageDrop,
+  readDragPayload,
+  writeDragPayload,
+} from "../transfer/drag-drop";
+import { useTransfer } from "../transfer/use-transfer";
 import { formatBytes } from "./ssh-terminal-utils";
 
 // ── Upload queue types ────────────────────────────────────────────────────────
@@ -164,6 +174,8 @@ export default function SshFileTree({
 
   // Drag-and-drop state
   const [draggingPaths, setDraggingPaths] = useState<Set<string>>(new Set());
+  const [isDragOver, setIsDragOver] = useState(false);
+  const dragEnterCount = useRef(0);
 
   // Hidden file input ref for upload
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -185,6 +197,13 @@ export default function SshFileTree({
 
   // Window manager for opening files in Monaco editor
   const windowManager = useWindowManager();
+  const { transfers, createTransfer } = useTransfer();
+
+  // ─── Auto-refresh when an incoming transfer completes ───
+  const pendingTransferIds = useRef(new Set<string>());
+  const completedTransferIds = useRef(new Set<string>());
+
+  const toast = useToast();
 
   // Context menu
   const { open: openCtxMenu, contextMenu } = useContextMenu();
@@ -229,6 +248,20 @@ export default function SshFileTree({
       refresh();
     }
   }, [uploadQueue, refresh]);
+
+  // Auto-refresh when an incoming transfer completes
+  useEffect(() => {
+    for (const tid of pendingTransferIds.current) {
+      const snap = transfers.get(tid);
+      if (
+        snap?.status === "completed" &&
+        !completedTransferIds.current.has(tid)
+      ) {
+        completedTransferIds.current.add(tid);
+        refresh();
+      }
+    }
+  }, [transfers, refresh]);
 
   // Fetch directory on connect / path change
   useEffect(() => {
@@ -302,15 +335,27 @@ export default function SshFileTree({
   // ── Drag-and-drop handlers ──
 
   const handleDragStart = useCallback(
-    (node: FileNode, _e: React.DragEvent) => {
+    (node: FileNode, e: React.DragEvent) => {
+      let paths: Set<string>;
       if (!selectedPaths.has(node.path)) {
         setSelectedPaths(new Set([node.path]));
-        setDraggingPaths(new Set([node.path]));
+        paths = new Set([node.path]);
       } else {
-        setDraggingPaths(new Set(selectedPaths));
+        paths = new Set(selectedPaths);
       }
+      setDraggingPaths(paths);
+
+      // Write cross-storage drag payload
+      const dragNodes = nodes.filter((n) => paths.has(n.path));
+      const payload = buildDragPayload(
+        "ssh-terminal",
+        terminalId,
+        connectionLabel ?? terminalId,
+        dragNodes,
+      );
+      writeDragPayload(e, payload);
     },
-    [selectedPaths],
+    [selectedPaths, nodes, terminalId, connectionLabel],
   );
 
   const handleDragEnd = useCallback(() => {
@@ -318,8 +363,34 @@ export default function SshFileTree({
   }, []);
 
   const handleDropToFolder = useCallback(
-    (targetNode: FileNode, _e: React.DragEvent) => {
+    (targetNode: FileNode, e: React.DragEvent) => {
       if (!targetNode.isDirectory) return;
+
+      // Check for cross-storage drag payload
+      const payload = readDragPayload(e);
+      if (payload && isCrossStorageDrop(payload, "ssh-terminal", terminalId)) {
+        const req = buildTransferRequest(
+          payload,
+          "ssh-terminal",
+          terminalId,
+          connectionLabel ?? terminalId,
+          targetNode.path,
+        );
+        createTransfer(req)
+          .then((transferId) => {
+            pendingTransferIds.current.add(transferId);
+            windowManager.openWindow({
+              type: "transfer",
+              title: t("transfer.title"),
+              metadata: { transferId },
+            });
+          })
+          .catch((err: Error) => toast.error(err.message));
+        setDraggingPaths(new Set());
+        return;
+      }
+
+      // Same-storage move
       for (const srcPath of draggingPaths) {
         if (srcPath !== targetNode.path) {
           mvMut.mutate({
@@ -331,7 +402,16 @@ export default function SshFileTree({
       }
       setDraggingPaths(new Set());
     },
-    [draggingPaths, terminalId, mvMut],
+    [
+      draggingPaths,
+      terminalId,
+      mvMut,
+      connectionLabel,
+      createTransfer,
+      windowManager,
+      t,
+      toast,
+    ],
   );
 
   const handleDownload = useCallback(
@@ -496,8 +576,82 @@ export default function SshFileTree({
     [openCtxMenu, refresh, t, triggerUpload, currentPath, connected],
   );
 
+  // ── Cross-storage container drop (into current directory) ──
+
+  const handleContainerDragOver = useCallback((e: React.DragEvent) => {
+    if (hasDragPayload(e)) {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = "copy";
+    }
+  }, []);
+
+  const handleContainerDragEnter = useCallback((e: React.DragEvent) => {
+    dragEnterCount.current++;
+    if (hasDragPayload(e)) {
+      e.preventDefault();
+      setIsDragOver(true);
+    }
+  }, []);
+
+  const handleContainerDragLeave = useCallback(() => {
+    dragEnterCount.current--;
+    if (dragEnterCount.current <= 0) {
+      dragEnterCount.current = 0;
+      setIsDragOver(false);
+    }
+  }, []);
+
+  const handleContainerDrop = useCallback(
+    (e: React.DragEvent) => {
+      dragEnterCount.current = 0;
+      setIsDragOver(false);
+      const payload = readDragPayload(e);
+      if (!payload || !isCrossStorageDrop(payload, "ssh-terminal", terminalId))
+        return;
+      e.preventDefault();
+      const req = buildTransferRequest(
+        payload,
+        "ssh-terminal",
+        terminalId,
+        connectionLabel ?? terminalId,
+        currentPath,
+      );
+      createTransfer(req)
+        .then((transferId) => {
+          pendingTransferIds.current.add(transferId);
+          windowManager.openWindow({
+            type: "transfer",
+            title: t("transfer.title"),
+            metadata: { transferId },
+          });
+        })
+        .catch((err: Error) => toast.error(err.message));
+    },
+    [
+      terminalId,
+      connectionLabel,
+      currentPath,
+      createTransfer,
+      windowManager,
+      t,
+      toast,
+    ],
+  );
+
   return (
-    <div className="flex flex-col h-full">
+    // biome-ignore lint/a11y/noStaticElementInteractions: cross-storage drop target
+    <div
+      className={[
+        "flex flex-col h-full",
+        isDragOver
+          ? "outline-2 outline-dashed outline-blue-400/60 -outline-offset-2 bg-blue-500/5"
+          : "",
+      ].join(" ")}
+      onDragOver={handleContainerDragOver}
+      onDragEnter={handleContainerDragEnter}
+      onDragLeave={handleContainerDragLeave}
+      onDrop={handleContainerDrop}
+    >
       {/* Breadcrumb */}
       <div className="border-b border-black/[0.06] dark:border-white/[0.08] shrink-0">
         <FileBreadcrumb
