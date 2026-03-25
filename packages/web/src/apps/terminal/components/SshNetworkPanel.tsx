@@ -57,7 +57,7 @@ export default function SshNetworkPanel({
   return (
     <div className="flex flex-col h-full overflow-hidden">
       {/* Header */}
-      <div className="flex items-center justify-between px-3 py-1 border-b border-zinc-800/60 shrink-0">
+      <div className="flex items-center justify-between px-3 py-1 border-b border-black/[0.08] dark:border-zinc-800/60 shrink-0">
         <div className="flex items-center gap-2">
           {/* Sub-tabs */}
           <SubTabButton
@@ -84,7 +84,7 @@ export default function SshNetworkPanel({
         <button
           type="button"
           onClick={fetchNetwork}
-          className="p-0.5 text-zinc-500 hover:text-zinc-300 transition-colors"
+          className="p-0.5 text-zinc-500 dark:text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300 transition-colors"
           title="刷新网络信息"
         >
           <RefreshCw className={`h-3 w-3 ${loading ? "animate-spin" : ""}`} />
@@ -94,7 +94,9 @@ export default function SshNetworkPanel({
       {/* Content */}
       <div className="flex-1 overflow-y-auto">
         {loading && interfaces.length === 0 ? (
-          <div className="text-zinc-600 text-xs px-3 py-2">加载中...</div>
+          <div className="text-zinc-500 dark:text-zinc-500 text-xs px-3 py-2">
+            加载中...
+          </div>
         ) : subTab === "interfaces" ? (
           <InterfaceTable interfaces={interfaces} />
         ) : subTab === "listening" ? (
@@ -124,8 +126,8 @@ function SubTabButton({
       onClick={onClick}
       className={`text-[10px] px-1.5 py-0.5 rounded transition-colors ${
         active
-          ? "text-zinc-200 bg-zinc-700/60"
-          : "text-zinc-500 hover:text-zinc-400"
+          ? "text-zinc-800 dark:text-zinc-200 bg-black/[0.08] dark:bg-zinc-700/60"
+          : "text-zinc-500 dark:text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-400"
       }`}
     >
       {label}
@@ -139,13 +141,17 @@ function InterfaceTable({
   interfaces: SshNetworkInterfaceEntry[];
 }) {
   if (interfaces.length === 0) {
-    return <div className="text-zinc-600 text-xs px-3 py-2">无网络接口</div>;
+    return (
+      <div className="text-zinc-500 dark:text-zinc-500 text-xs px-3 py-2">
+        无网络接口
+      </div>
+    );
   }
 
   return (
     <table className="w-full text-xs">
       <thead>
-        <tr className="text-[10px] text-zinc-500 border-b border-zinc-800/60">
+        <tr className="text-[10px] text-zinc-600 dark:text-zinc-400 border-b border-black/[0.08] dark:border-zinc-800/60">
           <th className="text-left font-normal px-3 py-1">接口</th>
           <th className="text-left font-normal px-2 py-1">状态</th>
           <th className="text-left font-normal px-2 py-1">IP 地址</th>
@@ -166,22 +172,24 @@ function InterfaceTable({
 
 function InterfaceRow({ iface }: { iface: SshNetworkInterfaceEntry }) {
   return (
-    <tr className="border-b border-zinc-800/30 hover:bg-zinc-800/30 transition-colors">
+    <tr className="border-b border-black/[0.05] dark:border-zinc-800/30 hover:bg-black/[0.04] dark:hover:bg-zinc-800/30 transition-colors">
       <td className="px-3 py-1.5">
         <div className="flex items-center gap-1.5">
           <Network className="h-3 w-3 shrink-0 text-[var(--accent-text)]" />
-          <span className="text-zinc-200 font-mono">{iface.name}</span>
+          <span className="text-zinc-800 dark:text-zinc-200 font-mono">
+            {iface.name}
+          </span>
         </div>
       </td>
       <td className="px-2 py-1.5">
         <span
           className={`inline-flex items-center gap-1 text-[10px] ${
-            iface.isUp ? "text-emerald-400" : "text-zinc-600"
+            iface.isUp ? "text-emerald-400" : "text-zinc-500 dark:text-zinc-500"
           }`}
         >
           <span
             className={`h-1.5 w-1.5 rounded-full ${
-              iface.isUp ? "bg-emerald-400" : "bg-zinc-600"
+              iface.isUp ? "bg-emerald-400" : "bg-zinc-400 dark:bg-zinc-600"
             }`}
           />
           {iface.isUp ? "UP" : "DOWN"}
@@ -191,25 +199,28 @@ function InterfaceRow({ iface }: { iface: SshNetworkInterfaceEntry }) {
         <div className="flex flex-col gap-0.5">
           {iface.ipAddresses.length > 0 ? (
             iface.ipAddresses.map((ip) => (
-              <span key={ip} className="text-zinc-300 font-mono text-[10px]">
+              <span
+                key={ip}
+                className="text-zinc-700 dark:text-zinc-300 font-mono text-[10px]"
+              >
                 {ip}
               </span>
             ))
           ) : (
-            <span className="text-zinc-600">—</span>
+            <span className="text-zinc-500 dark:text-zinc-500">—</span>
           )}
         </div>
       </td>
-      <td className="px-2 py-1.5 text-zinc-500 font-mono text-[10px]">
+      <td className="px-2 py-1.5 text-zinc-600 dark:text-zinc-300 font-mono text-[10px]">
         {iface.macAddress || "—"}
       </td>
-      <td className="px-2 py-1.5 text-right text-zinc-400 tabular-nums">
+      <td className="px-2 py-1.5 text-right text-zinc-700 dark:text-zinc-300 tabular-nums">
         {iface.mtu ?? "—"}
       </td>
-      <td className="px-2 py-1.5 text-right text-zinc-400 tabular-nums">
+      <td className="px-2 py-1.5 text-right text-zinc-700 dark:text-zinc-300 tabular-nums">
         {formatBytes(iface.rxBytes)}
       </td>
-      <td className="px-2 py-1.5 text-right text-zinc-400 tabular-nums">
+      <td className="px-2 py-1.5 text-right text-zinc-700 dark:text-zinc-300 tabular-nums">
         {formatBytes(iface.txBytes)}
       </td>
     </tr>
@@ -218,13 +229,17 @@ function InterfaceRow({ iface }: { iface: SshNetworkInterfaceEntry }) {
 
 function ListeningTable({ sockets }: { sockets: SshListeningSocketEntry[] }) {
   if (sockets.length === 0) {
-    return <div className="text-zinc-600 text-xs px-3 py-2">无监听端口</div>;
+    return (
+      <div className="text-zinc-500 dark:text-zinc-500 text-xs px-3 py-2">
+        无监听端口
+      </div>
+    );
   }
 
   return (
     <table className="w-full text-xs">
       <thead>
-        <tr className="text-[10px] text-zinc-500 border-b border-zinc-800/60">
+        <tr className="text-[10px] text-zinc-600 dark:text-zinc-400 border-b border-black/[0.08] dark:border-zinc-800/60">
           <th className="text-left font-normal px-3 py-1">协议</th>
           <th className="text-left font-normal px-2 py-1">本地地址</th>
           <th className="text-left font-normal px-2 py-1">进程</th>
@@ -234,15 +249,17 @@ function ListeningTable({ sockets }: { sockets: SshListeningSocketEntry[] }) {
         {sockets.map((s) => (
           <tr
             key={`${s.protocol}-${s.localAddress}-${s.process}`}
-            className="border-b border-zinc-800/30 hover:bg-zinc-800/30 transition-colors"
+            className="border-b border-black/[0.05] dark:border-zinc-800/30 hover:bg-black/[0.04] dark:hover:bg-zinc-800/30 transition-colors"
           >
             <td className="px-3 py-1.5">
               <ProtocolBadge protocol={s.protocol} />
             </td>
-            <td className="px-2 py-1.5 text-zinc-300 font-mono text-[10px]">
+            <td className="px-2 py-1.5 text-zinc-700 dark:text-zinc-300 font-mono text-[10px]">
               {s.localAddress}
             </td>
-            <td className="px-2 py-1.5 text-zinc-400">{s.process || "—"}</td>
+            <td className="px-2 py-1.5 text-zinc-500 dark:text-zinc-400">
+              {s.process || "—"}
+            </td>
           </tr>
         ))}
       </tbody>
@@ -256,13 +273,17 @@ function ConnectionTable({
   connections: SshConnectionEntry[];
 }) {
   if (connections.length === 0) {
-    return <div className="text-zinc-600 text-xs px-3 py-2">无活跃连接</div>;
+    return (
+      <div className="text-zinc-500 dark:text-zinc-500 text-xs px-3 py-2">
+        无活跃连接
+      </div>
+    );
   }
 
   return (
     <table className="w-full text-xs">
       <thead>
-        <tr className="text-[10px] text-zinc-500 border-b border-zinc-800/60">
+        <tr className="text-[10px] text-zinc-600 dark:text-zinc-400 border-b border-black/[0.08] dark:border-zinc-800/60">
           <th className="text-left font-normal px-3 py-1">协议</th>
           <th className="text-left font-normal px-2 py-1">本地地址</th>
           <th className="text-left font-normal px-2 py-1">远程地址</th>
@@ -274,21 +295,23 @@ function ConnectionTable({
         {connections.map((c) => (
           <tr
             key={`${c.protocol}-${c.localAddress}-${c.peerAddress}-${c.process}`}
-            className="border-b border-zinc-800/30 hover:bg-zinc-800/30 transition-colors"
+            className="border-b border-black/[0.05] dark:border-zinc-800/30 hover:bg-black/[0.04] dark:hover:bg-zinc-800/30 transition-colors"
           >
             <td className="px-3 py-1.5">
               <ProtocolBadge protocol={c.protocol} />
             </td>
-            <td className="px-2 py-1.5 text-zinc-300 font-mono text-[10px]">
+            <td className="px-2 py-1.5 text-zinc-700 dark:text-zinc-300 font-mono text-[10px]">
               {c.localAddress}
             </td>
-            <td className="px-2 py-1.5 text-zinc-300 font-mono text-[10px]">
+            <td className="px-2 py-1.5 text-zinc-700 dark:text-zinc-300 font-mono text-[10px]">
               {c.peerAddress}
             </td>
             <td className="px-2 py-1.5">
               <StateBadge state={c.state} />
             </td>
-            <td className="px-2 py-1.5 text-zinc-400">{c.process || "—"}</td>
+            <td className="px-2 py-1.5 text-zinc-500 dark:text-zinc-400">
+              {c.process || "—"}
+            </td>
           </tr>
         ))}
       </tbody>
@@ -298,13 +321,17 @@ function ConnectionTable({
 
 function RouteTable({ routes }: { routes: SshRouteEntry[] }) {
   if (routes.length === 0) {
-    return <div className="text-zinc-600 text-xs px-3 py-2">无路由信息</div>;
+    return (
+      <div className="text-zinc-500 dark:text-zinc-500 text-xs px-3 py-2">
+        无路由信息
+      </div>
+    );
   }
 
   return (
     <table className="w-full text-xs">
       <thead>
-        <tr className="text-[10px] text-zinc-500 border-b border-zinc-800/60">
+        <tr className="text-[10px] text-zinc-600 dark:text-zinc-400 border-b border-black/[0.08] dark:border-zinc-800/60">
           <th className="text-left font-normal px-3 py-1">目标</th>
           <th className="text-left font-normal px-2 py-1">网关</th>
           <th className="text-left font-normal px-2 py-1">接口</th>
@@ -317,32 +344,32 @@ function RouteTable({ routes }: { routes: SshRouteEntry[] }) {
         {routes.map((r) => (
           <tr
             key={`${r.destination}-${r.iface}-${r.gateway}`}
-            className="border-b border-zinc-800/30 hover:bg-zinc-800/30 transition-colors"
+            className="border-b border-black/[0.05] dark:border-zinc-800/30 hover:bg-black/[0.04] dark:hover:bg-zinc-800/30 transition-colors"
           >
             <td className="px-3 py-1.5">
               <span
                 className={`font-mono text-[10px] ${
                   r.destination === "default"
                     ? "text-emerald-400"
-                    : "text-zinc-300"
+                    : "text-zinc-700 dark:text-zinc-300"
                 }`}
               >
                 {r.destination}
               </span>
             </td>
-            <td className="px-2 py-1.5 text-zinc-300 font-mono text-[10px]">
+            <td className="px-2 py-1.5 text-zinc-700 dark:text-zinc-300 font-mono text-[10px]">
               {r.gateway || "—"}
             </td>
-            <td className="px-2 py-1.5 text-zinc-400 font-mono text-[10px]">
+            <td className="px-2 py-1.5 text-zinc-600 dark:text-zinc-300 font-mono text-[10px]">
               {r.iface || "—"}
             </td>
-            <td className="px-2 py-1.5 text-zinc-500 text-[10px]">
+            <td className="px-2 py-1.5 text-zinc-500 dark:text-zinc-400 text-[10px]">
               {r.protocol || "—"}
             </td>
-            <td className="px-2 py-1.5 text-zinc-500 text-[10px]">
+            <td className="px-2 py-1.5 text-zinc-500 dark:text-zinc-400 text-[10px]">
               {r.scope || "—"}
             </td>
-            <td className="px-2 py-1.5 text-right text-zinc-500 tabular-nums">
+            <td className="px-2 py-1.5 text-right text-zinc-700 dark:text-zinc-300 tabular-nums">
               {r.metric || "—"}
             </td>
           </tr>
@@ -375,7 +402,7 @@ function StateBadge({ state }: { state: string }) {
         ? "text-amber-400"
         : state === "CLOSE-WAIT"
           ? "text-red-400"
-          : "text-zinc-400";
+          : "text-zinc-500 dark:text-zinc-400";
 
   return <span className={`text-[10px] font-mono ${color}`}>{state}</span>;
 }

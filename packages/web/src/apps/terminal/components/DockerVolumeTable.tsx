@@ -79,7 +79,7 @@ export default function DockerVolumeTable({
           {volumes.map((v) => (
             <tr
               key={v.name}
-              className="text-zinc-400 hover:bg-zinc-800/50 cursor-default"
+              className="text-zinc-600 dark:text-zinc-400 hover:bg-zinc-800/50 cursor-default"
               onContextMenu={(e) => handleContextMenu(e, v)}
             >
               <td className="px-2 py-0.5 text-zinc-200 truncate max-w-40">

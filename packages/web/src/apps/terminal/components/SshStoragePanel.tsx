@@ -42,12 +42,14 @@ export default function SshStoragePanel({
   return (
     <div className="flex flex-col h-full overflow-hidden">
       {/* Header */}
-      <div className="flex items-center justify-between px-3 py-1 border-b border-zinc-800/60 shrink-0">
-        <span className="text-xs text-zinc-400">{disks.length} 个磁盘分区</span>
+      <div className="flex items-center justify-between px-3 py-1 border-b border-black/[0.08] dark:border-zinc-800/60 shrink-0">
+        <span className="text-xs text-zinc-500 dark:text-zinc-400">
+          {disks.length} 个磁盘分区
+        </span>
         <button
           type="button"
           onClick={fetchDisks}
-          className="p-0.5 text-zinc-500 hover:text-zinc-300 transition-colors"
+          className="p-0.5 text-zinc-500 dark:text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300 transition-colors"
           title="刷新存储信息"
         >
           <RefreshCw className={`h-3 w-3 ${loading ? "animate-spin" : ""}`} />
@@ -57,13 +59,17 @@ export default function SshStoragePanel({
       {/* Disk table */}
       <div className="flex-1 overflow-y-auto">
         {loading && disks.length === 0 ? (
-          <div className="text-zinc-600 text-xs px-3 py-2">加载中...</div>
+          <div className="text-zinc-500 dark:text-zinc-500 text-xs px-3 py-2">
+            加载中...
+          </div>
         ) : disks.length === 0 ? (
-          <div className="text-zinc-600 text-xs px-3 py-2">无磁盘信息</div>
+          <div className="text-zinc-500 dark:text-zinc-500 text-xs px-3 py-2">
+            无磁盘信息
+          </div>
         ) : (
           <table className="w-full text-xs">
             <thead>
-              <tr className="text-[10px] text-zinc-500 border-b border-zinc-800/60">
+              <tr className="text-[10px] text-zinc-600 dark:text-zinc-400 border-b border-black/[0.08] dark:border-zinc-800/60">
                 <th className="text-left font-normal px-3 py-1">挂载点</th>
                 <th className="text-left font-normal px-2 py-1">文件系统</th>
                 <th className="text-right font-normal px-2 py-1">总量</th>
@@ -99,7 +105,7 @@ function UsageBar({ percent }: { percent: number }) {
 
   return (
     <div className="flex items-center gap-1.5">
-      <div className="h-1.5 flex-1 bg-zinc-700/60 rounded-full overflow-hidden">
+      <div className="h-1.5 flex-1 bg-black/[0.10] dark:bg-zinc-700/60 rounded-full overflow-hidden">
         <div
           className={`h-full rounded-full ${barColor} transition-all duration-500`}
           style={{ width: `${Math.min(percent, 100)}%` }}
@@ -122,25 +128,25 @@ function UsageBar({ percent }: { percent: number }) {
 
 function DiskRow({ disk }: { disk: SshDiskEntry }) {
   return (
-    <tr className="border-b border-zinc-800/30 hover:bg-zinc-800/30 transition-colors">
+    <tr className="border-b border-black/[0.05] dark:border-zinc-800/30 hover:bg-black/[0.04] dark:hover:bg-zinc-800/30 transition-colors">
       <td className="px-3 py-1.5">
         <div className="flex items-center gap-1.5">
           <HardDrive className="h-3 w-3 shrink-0 text-[var(--accent-text)]" />
-          <span className="text-zinc-200 truncate max-w-32">
+          <span className="text-zinc-800 dark:text-zinc-200 truncate max-w-32">
             {disk.mountPoint}
           </span>
         </div>
       </td>
-      <td className="px-2 py-1.5 text-zinc-500 truncate max-w-24">
+      <td className="px-2 py-1.5 text-zinc-500 dark:text-zinc-400 truncate max-w-24">
         {disk.filesystem}
       </td>
-      <td className="px-2 py-1.5 text-right text-zinc-400 tabular-nums">
+      <td className="px-2 py-1.5 text-right text-zinc-700 dark:text-zinc-300 tabular-nums">
         {formatBytes(disk.totalBytes)}
       </td>
-      <td className="px-2 py-1.5 text-right text-zinc-300 tabular-nums">
+      <td className="px-2 py-1.5 text-right text-zinc-700 dark:text-zinc-300 tabular-nums">
         {formatBytes(disk.usedBytes)}
       </td>
-      <td className="px-2 py-1.5 text-right text-zinc-400 tabular-nums">
+      <td className="px-2 py-1.5 text-right text-zinc-700 dark:text-zinc-300 tabular-nums">
         {formatBytes(disk.availableBytes)}
       </td>
       <td className="px-2 py-1.5 w-20">

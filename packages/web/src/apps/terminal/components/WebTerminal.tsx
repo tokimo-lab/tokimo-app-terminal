@@ -227,7 +227,7 @@ export default function WebTerminal({
                     : "bg-zinc-500"
             }`}
           />
-          <span className="text-zinc-400">
+          <span className="text-zinc-600 dark:text-zinc-400">
             {status === "connected"
               ? "已连接"
               : status === "connecting"

@@ -89,7 +89,7 @@ export default function DockerNetworkTable({
             return (
               <tr
                 key={n.id}
-                className="text-zinc-400 hover:bg-zinc-800/50 cursor-default"
+                className="text-zinc-600 dark:text-zinc-400 hover:bg-zinc-800/50 cursor-default"
                 onContextMenu={(e) => handleContextMenu(e, n)}
               >
                 <td className="px-2 py-0.5 text-zinc-600 text-[10px]">

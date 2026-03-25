@@ -211,7 +211,7 @@ export default function SshDockerPanel({
   // ── Docker not available ──
   if (available === false) {
     return (
-      <div className="flex items-center justify-center h-full text-xs text-zinc-500 gap-2">
+      <div className="flex items-center justify-center h-full text-xs text-zinc-500 dark:text-zinc-500 gap-2">
         <Container className="h-4 w-4" />
         远程主机未安装 Docker
       </div>
@@ -222,16 +222,16 @@ export default function SshDockerPanel({
   if (overlay?.kind === "logs") {
     return (
       <div className="flex flex-col h-full overflow-hidden">
-        <div className="flex items-center gap-2 px-3 py-1 border-b border-zinc-800/60 shrink-0">
+        <div className="flex items-center gap-2 px-3 py-1 border-b border-black/[0.08] dark:border-zinc-800/60 shrink-0">
           <button
             type="button"
             onClick={() => setOverlay(null)}
-            className="p-0.5 text-zinc-500 hover:text-zinc-300 transition-colors"
+            className="p-0.5 text-zinc-500 dark:text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300 transition-colors"
           >
             <ArrowLeft className="h-3 w-3" />
           </button>
-          <ScrollText className="h-3 w-3 text-zinc-500" />
-          <span className="text-xs text-zinc-300 truncate">
+          <ScrollText className="h-3 w-3 text-zinc-500 dark:text-zinc-500" />
+          <span className="text-xs text-zinc-700 dark:text-zinc-300 truncate">
             {overlay.name} 日志
           </span>
         </div>
@@ -255,7 +255,7 @@ export default function SshDockerPanel({
   return (
     <div className="flex flex-col h-full overflow-hidden">
       {/* Tab bar */}
-      <div className="flex items-center justify-between px-3 py-1 border-b border-zinc-800/60 shrink-0">
+      <div className="flex items-center justify-between px-3 py-1 border-b border-black/[0.08] dark:border-zinc-800/60 shrink-0">
         <div className="flex items-center gap-1">
           <TabPill
             active={subTab === "containers"}
@@ -306,7 +306,7 @@ export default function SshDockerPanel({
           <button
             type="button"
             onClick={refreshCurrent}
-            className="p-0.5 text-zinc-500 hover:text-zinc-300 transition-colors"
+            className="p-0.5 text-zinc-500 dark:text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300 transition-colors"
             title="刷新"
           >
             <RefreshCw className={`h-3 w-3 ${loading ? "animate-spin" : ""}`} />
@@ -316,7 +316,7 @@ export default function SshDockerPanel({
 
       {/* Prune feedback */}
       {pruneMsg && (
-        <div className="px-3 py-1 text-[11px] text-green-400 bg-green-400/5 border-b border-zinc-800/60 shrink-0">
+        <div className="px-3 py-1 text-[11px] text-green-400 bg-green-400/5 border-b border-black/[0.08] dark:border-zinc-800/60 shrink-0">
           {pruneMsg}
         </div>
       )}
@@ -385,13 +385,15 @@ function TabPill({
       className={`flex items-center gap-1 text-[11px] px-1.5 py-0.5 rounded transition-colors ${
         active
           ? "text-[var(--accent-text)] bg-[var(--accent)]/10"
-          : "text-zinc-500 hover:text-zinc-300"
+          : "text-zinc-500 dark:text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300"
       }`}
     >
       {icon}
       {label}
       {count > 0 && (
-        <span className="text-[9px] text-zinc-600 ml-0.5">{count}</span>
+        <span className="text-[9px] text-zinc-500 dark:text-zinc-500 ml-0.5">
+          {count}
+        </span>
       )}
     </button>
   );
@@ -406,18 +408,24 @@ function DockerStatsTable({
   loading: boolean;
 }) {
   if (loading && stats.length === 0) {
-    return <div className="text-zinc-600 text-xs px-3 py-2">加载中...</div>;
+    return (
+      <div className="text-zinc-500 dark:text-zinc-500 text-xs px-3 py-2">
+        加载中...
+      </div>
+    );
   }
   if (stats.length === 0) {
     return (
-      <div className="text-zinc-600 text-xs px-3 py-2">无运行中的容器</div>
+      <div className="text-zinc-500 dark:text-zinc-500 text-xs px-3 py-2">
+        无运行中的容器
+      </div>
     );
   }
 
   return (
     <table className="w-full border-collapse text-xs font-mono">
-      <thead className="sticky top-0 bg-zinc-900/95 z-10">
-        <tr className="text-zinc-500">
+      <thead className="sticky top-0 bg-white dark:bg-zinc-900 z-10">
+        <tr className="text-zinc-700 dark:text-zinc-300">
           <th className="px-2 py-1 text-left font-normal">CONTAINER</th>
           <th className="px-2 py-1 text-right font-normal">CPU %</th>
           <th className="px-2 py-1 text-right font-normal">MEM USAGE</th>
@@ -431,27 +439,27 @@ function DockerStatsTable({
         {stats.map((s) => (
           <tr
             key={s.containerId}
-            className="text-zinc-400 hover:bg-zinc-800/50"
+            className="text-zinc-700 dark:text-zinc-300 hover:bg-black/[0.04] dark:hover:bg-zinc-800/50"
           >
-            <td className="px-2 py-0.5 text-zinc-200 truncate max-w-32">
+            <td className="px-2 py-0.5 text-zinc-800 dark:text-zinc-200 truncate max-w-32">
               {s.name}
             </td>
             <td className="px-2 py-0.5 text-right tabular-nums">
               <CpuBadge value={s.cpuPercent} />
             </td>
-            <td className="px-2 py-0.5 text-right tabular-nums text-zinc-400">
+            <td className="px-2 py-0.5 text-right tabular-nums text-zinc-600 dark:text-zinc-300">
               {s.memUsage}
             </td>
             <td className="px-2 py-0.5 text-right tabular-nums">
               <MemBadge value={s.memPercent} />
             </td>
-            <td className="px-2 py-0.5 text-right tabular-nums text-zinc-500 text-[10px]">
+            <td className="px-2 py-0.5 text-right tabular-nums text-zinc-500 dark:text-zinc-400 text-[10px]">
               {s.netIo}
             </td>
-            <td className="px-2 py-0.5 text-right tabular-nums text-zinc-500 text-[10px]">
+            <td className="px-2 py-0.5 text-right tabular-nums text-zinc-500 dark:text-zinc-400 text-[10px]">
               {s.blockIo}
             </td>
-            <td className="px-2 py-0.5 text-right tabular-nums text-zinc-600">
+            <td className="px-2 py-0.5 text-right tabular-nums text-zinc-500 dark:text-zinc-500">
               {s.pids}
             </td>
           </tr>
@@ -471,7 +479,11 @@ function CpuBadge({ value }: { value: string }) {
 function MemBadge({ value }: { value: string }) {
   const n = Number.parseFloat(value);
   const color =
-    n > 80 ? "text-red-400" : n > 50 ? "text-amber-400" : "text-zinc-400";
+    n > 80
+      ? "text-red-400"
+      : n > 50
+        ? "text-amber-400"
+        : "text-zinc-600 dark:text-zinc-300";
   return <span className={color}>{value}</span>;
 }
 

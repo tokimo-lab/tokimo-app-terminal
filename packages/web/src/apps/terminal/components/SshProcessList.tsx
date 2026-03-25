@@ -133,12 +133,14 @@ export default function SshProcessList({
   return (
     <div className="flex flex-col h-full overflow-hidden relative">
       {/* Header */}
-      <div className="flex items-center justify-between px-3 py-1 border-b border-zinc-800/60 shrink-0">
-        <span className="text-xs text-zinc-400">{processes.length} 个进程</span>
+      <div className="flex items-center justify-between px-3 py-1 border-b border-black/[0.08] dark:border-zinc-800/60 shrink-0">
+        <span className="text-xs text-zinc-500 dark:text-zinc-400">
+          {processes.length} 个进程
+        </span>
         <button
           type="button"
           onClick={fetchProcesses}
-          className="p-0.5 text-zinc-500 hover:text-zinc-300 transition-colors"
+          className="p-0.5 text-zinc-500 dark:text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300 transition-colors"
           title="刷新进程列表"
         >
           <RefreshCw className={`h-3 w-3 ${loading ? "animate-spin" : ""}`} />
@@ -148,8 +150,8 @@ export default function SshProcessList({
       {/* Table */}
       <div className="flex-1 overflow-y-auto overflow-x-auto text-xs font-mono">
         <table className="w-full border-collapse">
-          <thead className="sticky top-0 bg-zinc-900/95 z-10">
-            <tr className="text-zinc-500">
+          <thead className="sticky top-0 bg-white dark:bg-zinc-900 z-10">
+            <tr className="text-zinc-700 dark:text-zinc-300">
               <SortTh onClick={() => handleSort("pid")}>
                 PID{sortIndicator("pid")}
               </SortTh>
@@ -173,7 +175,10 @@ export default function SshProcessList({
           <tbody>
             {loading && processes.length === 0 ? (
               <tr>
-                <td colSpan={6} className="text-zinc-600 px-2 py-2 text-center">
+                <td
+                  colSpan={6}
+                  className="text-zinc-500 dark:text-zinc-500 px-2 py-2 text-center"
+                >
                   加载中...
                 </td>
               </tr>
@@ -181,10 +186,12 @@ export default function SshProcessList({
               sorted.map((proc) => (
                 <tr
                   key={proc.pid}
-                  className="text-zinc-400 hover:bg-zinc-800/50 cursor-default"
+                  className="text-zinc-700 dark:text-zinc-300 hover:bg-black/[0.04] dark:hover:bg-zinc-800/50 cursor-default"
                   onContextMenu={(e) => handleContextMenu(e, proc)}
                 >
-                  <td className="px-2 py-0.5 text-zinc-500">{proc.pid}</td>
+                  <td className="px-2 py-0.5 text-zinc-500 dark:text-zinc-400">
+                    {proc.pid}
+                  </td>
                   <td className="px-2 py-0.5 max-w-20 truncate">{proc.user}</td>
                   <td
                     className={`px-2 py-0.5 text-right tabular-nums ${proc.cpu > 50 ? "text-red-400" : proc.cpu > 10 ? "text-amber-400" : ""}`}
@@ -196,7 +203,7 @@ export default function SshProcessList({
                   >
                     {proc.mem.toFixed(1)}
                   </td>
-                  <td className="px-2 py-0.5 text-right tabular-nums text-zinc-500">
+                  <td className="px-2 py-0.5 text-right tabular-nums text-zinc-600 dark:text-zinc-300">
                     {formatBytes(proc.rssKb * 1024)}
                   </td>
                   <td className="px-2 py-0.5 max-w-60 truncate">
@@ -225,7 +232,7 @@ function SortTh({
 }) {
   return (
     <th
-      className={`px-2 py-1 font-normal cursor-pointer hover:text-zinc-300 transition-colors whitespace-nowrap select-none ${align === "right" ? "text-right" : "text-left"}`}
+      className={`px-2 py-1 font-normal cursor-pointer text-zinc-700 dark:text-zinc-300 hover:text-zinc-950 dark:hover:text-zinc-100 transition-colors whitespace-nowrap select-none ${align === "right" ? "text-right" : "text-left"}`}
       onClick={onClick}
     >
       {children}

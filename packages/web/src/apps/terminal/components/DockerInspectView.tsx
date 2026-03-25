@@ -47,17 +47,17 @@ export default function DockerInspectView({
         <button
           type="button"
           onClick={onBack}
-          className="p-0.5 text-zinc-500 hover:text-zinc-300 transition-colors"
+          className="p-0.5 text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 transition-colors"
         >
           <ArrowLeft className="h-3 w-3" />
         </button>
-        <span className="text-xs text-zinc-300 font-medium truncate">
+        <span className="text-xs text-zinc-700 dark:text-zinc-300 font-medium truncate">
           {containerId}
         </span>
         <button
           type="button"
           onClick={fetchInspect}
-          className="p-0.5 text-zinc-500 hover:text-zinc-300 transition-colors ml-auto"
+          className="p-0.5 text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 transition-colors ml-auto"
         >
           <RefreshCw className={`h-3 w-3 ${loading ? "animate-spin" : ""}`} />
         </button>
@@ -110,7 +110,10 @@ export default function DockerInspectView({
                   </thead>
                   <tbody>
                     {data.networks.map((n) => (
-                      <tr key={n.name} className="text-zinc-400">
+                      <tr
+                        key={n.name}
+                        className="text-zinc-600 dark:text-zinc-400"
+                      >
                         <td className="pr-2 py-0.5">{n.name}</td>
                         <td className="pr-2 py-0.5 font-mono">
                           {n.ipAddress || "-"}
@@ -131,7 +134,7 @@ export default function DockerInspectView({
             {/* Port bindings */}
             {data.portBindings && data.portBindings !== "{}" && (
               <Section title="端口映射">
-                <pre className="text-[10px] text-zinc-400 font-mono whitespace-pre-wrap break-all">
+                <pre className="text-[10px] text-zinc-600 dark:text-zinc-400 font-mono whitespace-pre-wrap break-all">
                   {formatPortBindings(data.portBindings)}
                 </pre>
               </Section>
@@ -153,7 +156,7 @@ export default function DockerInspectView({
                     {data.mounts.map((m) => (
                       <tr
                         key={`${m.source}-${m.destination}`}
-                        className="text-zinc-400"
+                        className="text-zinc-600 dark:text-zinc-400"
                       >
                         <td className="pr-2 py-0.5 font-mono truncate max-w-40">
                           {m.source}
@@ -181,7 +184,9 @@ export default function DockerInspectView({
                     return (
                       <div key={e} className="flex gap-1">
                         <span className="text-zinc-500 shrink-0">{key}=</span>
-                        <span className="text-zinc-400 break-all">{val}</span>
+                        <span className="text-zinc-600 dark:text-zinc-400 break-all">
+                          {val}
+                        </span>
                       </div>
                     );
                   })}
@@ -224,7 +229,9 @@ function Row({
   return (
     <div className="flex gap-2 py-0.5">
       <span className="text-zinc-600 w-20 shrink-0">{label}</span>
-      <span className={`text-zinc-400 break-all ${mono ? "font-mono" : ""}`}>
+      <span
+        className={`text-zinc-600 dark:text-zinc-400 break-all ${mono ? "font-mono" : ""}`}
+      >
         {value || "-"}
       </span>
     </div>

@@ -175,7 +175,7 @@ export default function DockerContainerTable({
             return (
               <tr
                 key={c.id}
-                className="text-zinc-400 hover:bg-zinc-800/50 cursor-default"
+                className="text-zinc-600 dark:text-zinc-400 hover:bg-zinc-800/50 cursor-default"
                 onContextMenu={(e) => handleContextMenu(e, c)}
               >
                 <td className="px-2 py-0.5">
@@ -294,7 +294,7 @@ function Btn({
         e.stopPropagation();
         onClick();
       }}
-      className={`p-0.5 text-zinc-500 hover:text-zinc-300 transition-colors ${className}`}
+      className={`p-0.5 text-zinc-600 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200 transition-colors ${className}`}
     >
       {children}
     </button>

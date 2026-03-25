@@ -763,8 +763,8 @@ export default function SshFileTree({
 
       {/* Upload progress panel — shown when there are uploads */}
       {uploadQueue.length > 0 && (
-        <div className="shrink-0 border-t border-zinc-800 bg-zinc-900/60 max-h-36 overflow-y-auto">
-          <div className="px-2 py-1 text-[10px] font-semibold text-zinc-500 uppercase tracking-wider">
+        <div className="shrink-0 border-t border-black/[0.10] dark:border-zinc-800 bg-black/[0.06] dark:bg-zinc-900/60 max-h-36 overflow-y-auto">
+          <div className="px-2 py-1 text-[10px] font-semibold text-zinc-600 dark:text-zinc-500 uppercase tracking-wider">
             上传队列
           </div>
           {uploadQueue.map((item) => (
@@ -784,12 +784,12 @@ export default function SshFileTree({
                 {/* File name + size */}
                 <div className="flex items-center justify-between gap-1 text-[10px]">
                   <span
-                    className="truncate text-zinc-300"
+                    className="truncate text-zinc-700 dark:text-zinc-300"
                     title={item.filename}
                   >
                     {item.filename}
                   </span>
-                  <span className="shrink-0 text-zinc-500">
+                  <span className="shrink-0 text-zinc-600 dark:text-zinc-400/70 dark:text-zinc-500">
                     {item.status === "uploading"
                       ? `${formatBytes(item.loaded)} / ${formatBytes(item.size)}`
                       : formatBytes(item.size)}
@@ -797,7 +797,7 @@ export default function SshFileTree({
                 </div>
                 {/* Progress bar */}
                 {(item.status === "uploading" || item.status === "pending") && (
-                  <div className="mt-0.5 h-1 rounded-full bg-zinc-700 overflow-hidden">
+                  <div className="mt-0.5 h-1 rounded-full bg-black/[0.10] dark:bg-zinc-700 overflow-hidden">
                     <div
                       className="h-full rounded-full bg-blue-500 transition-all duration-200"
                       style={{

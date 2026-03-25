@@ -24,6 +24,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useWindowManager } from "../../contexts/WindowManagerContext";
 import { api } from "../../generated/rust-api";
 import type { SshHostStats } from "../../generated/rust-types/SshHostStats";
+import { useAuth } from "../../hooks";
+import { useThemeContext } from "../../hooks/ThemeContext";
+import { getComponentSettings } from "../../lib/settings-helpers";
 import { useWindowActive } from "../window-manager/WindowActiveContext";
 import SshDockerPanel from "./SshDockerPanel";
 import type { UploadItem, UploadQueue } from "./SshFileTree";
@@ -32,6 +35,7 @@ import SshNetworkPanel from "./SshNetworkPanel";
 import SshProcessList from "./SshProcessList";
 import SshStoragePanel from "./SshStoragePanel";
 import { formatBytes } from "./ssh-terminal-utils";
+import { getTerminalTheme, type TerminalThemeId } from "./terminal-themes";
 
 interface SshTerminalWindowProps {
   /** SSH terminal config ID (uuid) */
@@ -63,6 +67,15 @@ export default function SshTerminalWindow({
   windowId,
 }: SshTerminalWindowProps) {
   const { windows, openWindow, updateMetadata } = useWindowManager();
+  const { theme } = useThemeContext();
+  const { user } = useAuth();
+  const terminalColorScheme = ((
+    (user ? getComponentSettings(user, "terminal") : {})?.theme as Record<
+      string,
+      unknown
+    >
+  )?.colorScheme ?? "auto") as TerminalThemeId;
+  const resolvedThemeRef = useRef(getTerminalTheme(terminalColorScheme, theme));
   const win = windows.find((w) => w.id === windowId);
   const savedPanelHeight = win?.metadata.sshPanelHeight || 192;
   const savedPanelCollapsed = win?.metadata.sshPanelCollapsed ?? false;
@@ -351,29 +364,7 @@ export default function SshTerminalWindow({
 
       const term = new Terminal({
         allowTransparency: true,
-        theme: {
-          background: "rgba(0, 0, 0, 0)",
-          foreground: "#e4e4e7",
-          cursor: "#a1a1aa",
-          cursorAccent: "#09090b",
-          selectionBackground: "#3f3f46",
-          black: "#18181b",
-          red: "#ef4444",
-          green: "#22c55e",
-          yellow: "#eab308",
-          blue: "#3b82f6",
-          magenta: "#a855f7",
-          cyan: "#06b6d4",
-          white: "#e4e4e7",
-          brightBlack: "#71717a",
-          brightRed: "#f87171",
-          brightGreen: "#4ade80",
-          brightYellow: "#facc15",
-          brightBlue: "#60a5fa",
-          brightMagenta: "#c084fc",
-          brightCyan: "#22d3ee",
-          brightWhite: "#fafafa",
-        },
+        theme: resolvedThemeRef.current,
         fontSize: 14,
         fontFamily:
           'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace',
@@ -537,6 +528,15 @@ export default function SshTerminalWindow({
     };
   }, [terminalId]);
 
+  // Sync xterm theme when app theme or terminal scheme changes (no reconnect)
+  useEffect(() => {
+    const resolved = getTerminalTheme(terminalColorScheme, theme);
+    resolvedThemeRef.current = resolved;
+    if (termRef.current) {
+      termRef.current.options.theme = resolved;
+    }
+  }, [theme, terminalColorScheme]);
+
   const connected = status === "connected";
 
   const statusColor = connected
@@ -558,18 +558,20 @@ export default function SshTerminalWindow({
   return (
     <div ref={wrapperRef} className="relative h-full w-full flex flex-col">
       {/* ── Top bar: status + CPU/memory gauges + reconnect ── */}
-      <div className="flex items-center justify-between px-3 py-1.5 bg-zinc-900/40 border-b border-zinc-800/60 shrink-0">
+      <div className="flex items-center justify-between px-3 py-1.5 bg-black/[0.04] dark:bg-zinc-900/40 border-b border-black/[0.08] dark:border-zinc-800/60 shrink-0">
         <div className="flex items-center gap-3 text-xs">
           <div className="flex items-center gap-1.5">
             <span
               className={`inline-block h-2 w-2 rounded-full ${statusColor}`}
             />
-            <span className="text-zinc-400">{statusText}</span>
+            <span className="text-zinc-500 dark:text-zinc-400">
+              {statusText}
+            </span>
           </div>
 
           {hostStats && connected && (
             <>
-              <span className="text-zinc-600">|</span>
+              <span className="text-zinc-500 dark:text-zinc-500">|</span>
               <StatGauge
                 label="CPU"
                 percent={hostStats.cpuUsagePercent}
@@ -583,7 +585,7 @@ export default function SshTerminalWindow({
               />
               {(hostStats.memBuffersBytes > 0 ||
                 hostStats.memCachedBytes > 0) && (
-                <span className="text-zinc-600 text-[10px]">
+                <span className="text-zinc-500 dark:text-zinc-500 text-[10px]">
                   Buf {formatBytes(hostStats.memBuffersBytes)} / Cache{" "}
                   {formatBytes(hostStats.memCachedBytes)}
                 </span>
@@ -618,7 +620,7 @@ export default function SshTerminalWindow({
             type="button"
             onClick={handleDuplicate}
             title="复制会话"
-            className="flex items-center justify-center h-5 w-5 rounded text-zinc-500 hover:text-zinc-200 hover:bg-zinc-700/60 transition-colors"
+            className="flex items-center justify-center h-5 w-5 rounded text-zinc-500 dark:text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200 hover:bg-black/[0.08] dark:hover:bg-zinc-700/60 transition-colors"
           >
             <CopyPlus className="h-3.5 w-3.5" />
           </button>
@@ -635,7 +637,7 @@ export default function SshTerminalWindow({
       {connected && !panelCollapsed && (
         // biome-ignore lint/a11y/noStaticElementInteractions: drag resize handle
         <div
-          className="shrink-0 h-1 cursor-row-resize bg-zinc-800/60 hover:bg-zinc-600/60 active:bg-emerald-600/80 transition-colors"
+          className="shrink-0 h-1 cursor-row-resize bg-black/[0.06] dark:bg-zinc-800/60 hover:bg-black/[0.10] dark:hover:bg-zinc-600/60 active:bg-emerald-600/80 transition-colors"
           onMouseDown={handleDragStart}
         />
       )}
@@ -643,14 +645,14 @@ export default function SshTerminalWindow({
       {/* ── Bottom: tabbed panel (hidden until connected) ── */}
       {connected && (
         <div
-          className="shrink-0 bg-zinc-900/40 flex flex-col overflow-hidden"
+          className="shrink-0 bg-black/[0.04] dark:bg-zinc-900/40 flex flex-col overflow-hidden"
           style={panelCollapsed ? undefined : { height: panelHeight }}
         >
           {/* Tab bar — click blank area to collapse/expand */}
           {/* biome-ignore lint/a11y/noStaticElementInteractions: drag/click area */}
           {/* biome-ignore lint/a11y/useKeyWithClickEvents: collapse toggle, keyboard not needed */}
           <div
-            className="flex items-center shrink-0 border-b border-zinc-800/40 cursor-pointer"
+            className="flex items-center shrink-0 border-b border-black/[0.06] dark:border-zinc-800/40 cursor-pointer"
             onClick={handleToggleCollapse}
           >
             <TabButton
@@ -768,7 +770,7 @@ function TabButton({
       className={`relative flex items-center gap-1 px-3 py-1 text-xs transition-colors cursor-pointer ${
         active && !collapsed
           ? "text-[var(--accent-text)] border-b-2 border-[var(--accent)] -mb-px"
-          : "text-zinc-500 hover:text-zinc-300"
+          : "text-zinc-500 dark:text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300"
       }`}
     >
       {icon}
@@ -802,17 +804,21 @@ function StatGauge({
 
   return (
     <div className="flex items-center gap-1.5">
-      <span className="text-zinc-500">{label}</span>
-      <div className="w-16 h-1.5 bg-zinc-800 rounded-full overflow-hidden">
+      <span className="text-zinc-600 dark:text-zinc-400">{label}</span>
+      <div className="w-16 h-1.5 bg-black/[0.10] dark:bg-zinc-800 rounded-full overflow-hidden">
         <div
           className={`h-full rounded-full ${barColor} transition-all duration-500`}
           style={{ width: `${Math.min(percent, 100)}%` }}
         />
       </div>
-      <span className="text-zinc-400 tabular-nums w-9 text-right">
+      <span className="text-zinc-700 dark:text-zinc-300 tabular-nums w-9 text-right">
         {percent.toFixed(0)}%
       </span>
-      {detail && <span className="text-zinc-600 text-[10px]">{detail}</span>}
+      {detail && (
+        <span className="text-zinc-500 dark:text-zinc-500 text-[10px]">
+          {detail}
+        </span>
+      )}
     </div>
   );
 }
