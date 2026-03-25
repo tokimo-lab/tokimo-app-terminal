@@ -5,9 +5,9 @@
  * 双击连接打开全局任务窗口中的 xterm.js SSH 终端。
  */
 
-import { Button, Empty, Modal, Spin } from "@tokiomo/components";
-import { Monitor, Pencil, Play, Plus, Trash2 } from "lucide-react";
-import { useCallback, useState } from "react";
+import { Button, Modal, Spin } from "@tokiomo/components";
+import { ArrowLeft, Monitor, Plus } from "lucide-react";
+import { useCallback } from "react";
 import SshTerminalForm from "../../components/terminal/SshTerminalForm";
 import { useWindowNav } from "../../components/window-manager/WindowNavContext";
 import {
@@ -18,51 +18,34 @@ import {
 } from "../../generated/rust-api";
 
 export default function TerminalAppPage() {
-  const { params, openWindow } = useWindowNav();
+  const { params } = useWindowNav();
   const appId = params.appId as string | undefined;
-  const [formOpen, setFormOpen] = useState(false);
-  const [editingTerminal, setEditingTerminal] =
-    useState<SshTerminalOutput | null>(null);
+  const subView = params.terminalSubView as "create" | "edit" | undefined;
+  const editTerminalId = params.editTerminalId as string | undefined;
 
-  const libraryQuery = api.app.getById.useQuery(
-    { id: appId! },
-    { enabled: !!appId },
-  );
+  if (subView === "create") {
+    return <TerminalCreateView appId={appId!} />;
+  }
+  if (subView === "edit" && editTerminalId) {
+    return <TerminalEditView appId={appId!} terminalId={editTerminalId} />;
+  }
+
+  return <TerminalCardGrid appId={appId} />;
+}
+
+// ── Card Grid (main view) ──
+
+function TerminalCardGrid({ appId }: { appId: string | undefined }) {
+  const { openWindow, navigate } = useWindowNav();
 
   const terminalsQuery = api.sshTerminal.list.useQuery(
     { appId: appId! },
     { enabled: !!appId },
   );
 
-  const createMutation = api.sshTerminal.create.useMutation({
-    onSuccess: () => {
-      terminalsQuery.refetch();
-      setFormOpen(false);
-    },
-  });
-
-  const updateMutation = api.sshTerminal.update.useMutation({
-    onSuccess: () => {
-      terminalsQuery.refetch();
-      setFormOpen(false);
-      setEditingTerminal(null);
-    },
-  });
-
   const deleteMutation = api.sshTerminal.delete.useMutation({
     onSuccess: () => terminalsQuery.refetch(),
   });
-
-  const handleFormSubmit = useCallback(
-    (data: CreateSshTerminalInput | UpdateSshTerminalInput) => {
-      if (editingTerminal) {
-        updateMutation.mutate(data as UpdateSshTerminalInput);
-      } else {
-        createMutation.mutate(data as CreateSshTerminalInput);
-      }
-    },
-    [editingTerminal, createMutation, updateMutation],
-  );
 
   const handleDelete = useCallback(
     (terminal: SshTerminalOutput) => {
@@ -97,7 +80,7 @@ export default function TerminalAppPage() {
     [openWindow, appId],
   );
 
-  if (libraryQuery.isLoading || terminalsQuery.isLoading) {
+  if (terminalsQuery.isLoading) {
     return (
       <div className="flex items-center justify-center h-full">
         <Spin />
@@ -105,131 +88,219 @@ export default function TerminalAppPage() {
     );
   }
 
-  const library = libraryQuery.data;
   const terminals = terminalsQuery.data ?? [];
 
   return (
-    <div className="h-full flex flex-col p-4 gap-4 rounded-xl bg-white/50 dark:bg-white/[0.03] backdrop-blur-sm">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <h1 className="text-lg font-semibold text-neutral-900 dark:text-neutral-100">
-          {library?.name ?? "Terminal"}
-        </h1>
-        <Button
-          variant="primary"
-          size="small"
-          onClick={() => {
-            setEditingTerminal(null);
-            setFormOpen(true);
-          }}
-        >
-          <Plus className="h-4 w-4 mr-1" />
-          新建终端
-        </Button>
-      </div>
-
-      {/* Terminal List */}
-      {terminals.length === 0 ? (
-        <div className="flex-1 flex items-center justify-center">
-          <Empty description="暂无终端连接，点击右上角新建" />
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-          {terminals.map((terminal) => (
-            // biome-ignore lint/a11y/noStaticElementInteractions: double-click to open terminal
-            <div
-              key={terminal.id}
-              className="group relative rounded-xl border border-black/[0.06] bg-white/60 backdrop-blur-sm p-4 cursor-pointer transition-all hover:border-black/[0.12] hover:bg-white/80 dark:border-white/[0.08] dark:bg-white/[0.06] dark:hover:border-white/[0.15] dark:hover:bg-white/[0.1]"
-              onDoubleClick={() => handleOpenTerminal(terminal)}
-            >
-              <div className="flex items-start gap-3">
-                <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-emerald-500/10 dark:bg-emerald-500/15 flex items-center justify-center">
-                  <Monitor className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <h3 className="text-sm font-medium text-neutral-900 dark:text-neutral-200 truncate">
-                    {terminal.name}
-                  </h3>
-                  <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5 truncate">
-                    {terminal.username}@{terminal.host}:{terminal.port}
-                  </p>
-                  <p className="text-xs text-neutral-400 dark:text-neutral-500 mt-0.5">
-                    {terminal.authMethod === "private_key"
-                      ? "密钥认证"
-                      : "密码认证"}
-                  </p>
-                  {terminal.notes && (
-                    <p className="text-xs text-neutral-400 dark:text-neutral-500 mt-1 line-clamp-2">
-                      {terminal.notes}
-                    </p>
-                  )}
-                </div>
+    <div className="h-full overflow-y-auto">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        {terminals.map((terminal) => (
+          // biome-ignore lint/a11y/noStaticElementInteractions: double-click to open terminal
+          <div
+            key={terminal.id}
+            className="group relative flex h-[89px] flex-col rounded-xl border transition-all border-[var(--glass-border)] bg-[var(--bg-glass)] hover:border-[var(--glass-border-hover)] hover:bg-[var(--bg-glass-hover)] cursor-pointer"
+            onDoubleClick={() => handleOpenTerminal(terminal)}
+          >
+            {/* Content */}
+            <div className="flex-1 px-3.5 py-2.5">
+              <div className="flex items-center gap-2">
+                <Monitor className="h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
+                <span className="truncate font-medium text-sm text-[var(--text-primary)]">
+                  {terminal.name}
+                </span>
+                <span className="shrink-0 ml-auto text-xs text-[var(--text-quaternary)] tabular-nums">
+                  {terminal.username}@{terminal.host}:{terminal.port}
+                </span>
               </div>
-
-              {/* Actions (visible on hover) */}
-              <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                <button
-                  type="button"
-                  title="连接"
-                  className="p-1.5 rounded-md bg-emerald-500/80 hover:bg-emerald-500 text-white transition-colors"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleOpenTerminal(terminal);
-                  }}
-                >
-                  <Play className="h-3.5 w-3.5" />
-                </button>
-                <button
-                  type="button"
-                  title="编辑"
-                  className="p-1.5 rounded-md bg-black/10 hover:bg-black/20 text-neutral-500 hover:text-neutral-700 dark:bg-white/10 dark:hover:bg-white/20 dark:text-neutral-400 dark:hover:text-neutral-200 transition-colors"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setEditingTerminal(terminal);
-                    setFormOpen(true);
-                  }}
-                >
-                  <Pencil className="h-3.5 w-3.5" />
-                </button>
-                <button
-                  type="button"
-                  title="删除"
-                  className="p-1.5 rounded-md bg-black/10 hover:bg-red-500/80 text-neutral-500 hover:text-white dark:bg-white/10 dark:hover:bg-red-600/80 dark:text-neutral-400 dark:hover:text-white transition-colors"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleDelete(terminal);
-                  }}
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                </button>
-              </div>
+              <p className="mt-1 text-xs text-[var(--text-quaternary)] truncate pl-6">
+                {terminal.notes || "\u00A0"}
+              </p>
             </div>
-          ))}
-        </div>
-      )}
 
-      {/* Create / Edit Modal */}
-      <Modal
-        open={formOpen}
-        onCancel={() => {
-          setFormOpen(false);
-          setEditingTerminal(null);
-        }}
-        title={editingTerminal ? "编辑终端" : "新建终端"}
-        width={480}
-        footer={null}
-      >
-        <SshTerminalForm
-          appId={appId!}
-          terminal={editingTerminal}
-          onSubmit={handleFormSubmit}
-          onCancel={() => {
-            setFormOpen(false);
-            setEditingTerminal(null);
-          }}
-          isLoading={createMutation.isPending || updateMutation.isPending}
-        />
-      </Modal>
+            {/* Actions: 3 equal buttons with CSS dividers */}
+            <div className="flex items-center border-t border-[var(--glass-border)]">
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleOpenTerminal(terminal);
+                }}
+                className="flex-1 cursor-pointer border-r border-[var(--glass-border)] py-2 text-center text-xs font-medium text-[var(--text-secondary)] transition-colors hover:text-emerald-500 hover:bg-[var(--bg-glass-hover)]"
+              >
+                连接
+              </button>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  navigate("编辑终端", {
+                    appId,
+                    terminalSubView: "edit",
+                    editTerminalId: terminal.id,
+                  });
+                }}
+                className="flex-1 cursor-pointer border-r border-[var(--glass-border)] py-2 text-center text-xs font-medium text-[var(--text-secondary)] transition-colors hover:text-[var(--accent)] hover:bg-[var(--bg-glass-hover)]"
+              >
+                编辑
+              </button>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleDelete(terminal);
+                }}
+                className="flex-1 cursor-pointer py-2 text-center text-xs font-medium text-red-500 transition-colors hover:text-red-400 hover:bg-red-500/5"
+              >
+                删除
+              </button>
+            </div>
+          </div>
+        ))}
+
+        {/* Add card — dashed border, same size as terminal cards, centered content */}
+        <button
+          type="button"
+          className="flex h-[89px] items-center justify-center rounded-xl border border-dashed border-[var(--glass-border)] text-[var(--text-quaternary)] transition-colors hover:border-[var(--glass-border-hover)] hover:text-[var(--text-tertiary)] hover:bg-[var(--bg-glass-hover)] cursor-pointer"
+          onClick={() =>
+            navigate("新建终端", {
+              appId,
+              terminalSubView: "create",
+            })
+          }
+        >
+          <div className="flex flex-col items-center gap-1.5">
+            <Plus className="h-5 w-5" />
+            <span className="text-xs">新建终端</span>
+          </div>
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ── Create View ──
+
+function TerminalCreateView({ appId }: { appId: string }) {
+  const { goBack } = useWindowNav();
+
+  const terminalsQuery = api.sshTerminal.list.useQuery(
+    { appId },
+    { enabled: false },
+  );
+
+  const createMutation = api.sshTerminal.create.useMutation({
+    onSuccess: () => {
+      terminalsQuery.refetch();
+      goBack();
+    },
+  });
+
+  const handleSubmit = useCallback(
+    (data: CreateSshTerminalInput | UpdateSshTerminalInput) => {
+      createMutation.mutate(data as CreateSshTerminalInput);
+    },
+    [createMutation],
+  );
+
+  return (
+    <div className="h-full flex flex-col">
+      <div className="flex items-center gap-3 mb-4 shrink-0">
+        <button
+          type="button"
+          onClick={goBack}
+          className="flex items-center justify-center w-8 h-8 rounded-lg cursor-pointer hover:bg-black/[0.06] dark:hover:bg-white/[0.08] transition-colors"
+        >
+          <ArrowLeft size={18} />
+        </button>
+        <h3 className="text-lg font-semibold text-[var(--text-primary)]">
+          新建终端
+        </h3>
+      </div>
+      <div className="flex-1 min-h-0 overflow-y-auto">
+        <div className="max-w-lg mx-auto">
+          <SshTerminalForm
+            appId={appId}
+            terminal={null}
+            onSubmit={handleSubmit}
+            onCancel={goBack}
+            isLoading={createMutation.isPending}
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Edit View ──
+
+function TerminalEditView({
+  appId,
+  terminalId,
+}: {
+  appId: string;
+  terminalId: string;
+}) {
+  const { goBack } = useWindowNav();
+
+  const terminalsQuery = api.sshTerminal.list.useQuery({ appId });
+  const terminal =
+    (terminalsQuery.data ?? []).find((t) => t.id === terminalId) ?? null;
+
+  const updateMutation = api.sshTerminal.update.useMutation({
+    onSuccess: () => {
+      terminalsQuery.refetch();
+      goBack();
+    },
+  });
+
+  const handleSubmit = useCallback(
+    (data: CreateSshTerminalInput | UpdateSshTerminalInput) => {
+      updateMutation.mutate(data as UpdateSshTerminalInput);
+    },
+    [updateMutation],
+  );
+
+  if (terminalsQuery.isLoading) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <Spin />
+      </div>
+    );
+  }
+
+  if (!terminal) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full gap-3">
+        <p className="text-sm text-[var(--text-tertiary)]">终端不存在</p>
+        <Button onClick={goBack}>返回</Button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="h-full flex flex-col">
+      <div className="flex items-center gap-3 mb-4 shrink-0">
+        <button
+          type="button"
+          onClick={goBack}
+          className="flex items-center justify-center w-8 h-8 rounded-lg cursor-pointer hover:bg-black/[0.06] dark:hover:bg-white/[0.08] transition-colors"
+        >
+          <ArrowLeft size={18} />
+        </button>
+        <h3 className="text-lg font-semibold text-[var(--text-primary)]">
+          编辑终端 — {terminal.name}
+        </h3>
+      </div>
+      <div className="flex-1 min-h-0 overflow-y-auto">
+        <div className="max-w-lg mx-auto">
+          <SshTerminalForm
+            appId={appId}
+            terminal={terminal}
+            onSubmit={handleSubmit}
+            onCancel={goBack}
+            isLoading={updateMutation.isPending}
+          />
+        </div>
+      </div>
     </div>
   );
 }

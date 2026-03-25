@@ -29,7 +29,9 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useWindowManager } from "../../contexts/WindowManagerContext";
-import { api } from "../../generated/rust-api";
+import { api, type RustApiError } from "../../generated/rust-api";
+import { useAuth } from "../../hooks/useAuth";
+import { getComponentSettings } from "../../lib/settings-helpers";
 import {
   buildDragPayload,
   buildTransferRequest,
@@ -79,6 +81,8 @@ export interface SshFileTreeProps {
   onPathChange?: (path: string) => void;
   /** Label shown next to the SSH badge, e.g. "root@10.0.0.1" */
   connectionLabel?: string;
+  /** Initial directory path to show on mount (restored from persisted state). */
+  initialPath?: string;
 }
 
 /** Convert SSH ls entries into FileNode[] that FileGrid understands. */
@@ -165,11 +169,13 @@ export default function SshFileTree({
   onUploadFiles,
   onPathChange,
   connectionLabel,
+  initialPath,
 }: SshFileTreeProps) {
   const { t } = useTranslation();
-  const [currentPath, setCurrentPath] = useState("/");
+  const [currentPath, setCurrentPath] = useState(initialPath || "/");
   const [rawNodes, setRawNodes] = useState<FileNode[]>([]);
   const [loading, setLoading] = useState(false);
+  const [pathNotFound, setPathNotFound] = useState(false);
   const [selectedPaths, setSelectedPaths] = useState<Set<string>>(new Set());
 
   // Drag-and-drop state
@@ -181,8 +187,22 @@ export default function SshFileTree({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const uploadTargetRef = useRef<string>("/");
 
+  // Read initial viewMode from user settings
+  const { user } = useAuth();
+  const savedViewMode = user
+    ? (
+        getComponentSettings(user, "terminal")?.fileBrowser as
+          | Record<string, unknown>
+          | undefined
+      )?.viewMode
+    : undefined;
+
   // View state
-  const [viewMode, setViewMode] = useState<ViewMode>("list");
+  const [viewMode, setViewMode] = useState<ViewMode>(
+    savedViewMode === "grid" || savedViewMode === "list"
+      ? savedViewMode
+      : "list",
+  );
   const [sortBy, setSortBy] = useState<SortBy>("name");
   const [sortDir, setSortDir] = useState<SortDir>("asc");
   const [showHidden, setShowHidden] = useState(false);
@@ -211,26 +231,30 @@ export default function SshFileTree({
 
   const fetchDir = useCallback(
     async (path: string) => {
-      try {
-        const resp = await api.sshTerminal.ls.fetch({
-          id: terminalId,
-          path,
-        });
-        return resp.entries;
-      } catch {
-        return [];
-      }
+      const resp = await api.sshTerminal.ls.fetch({
+        id: terminalId,
+        path,
+      });
+      return resp.entries;
     },
     [terminalId],
   );
 
   const refresh = useCallback(() => {
     setLoading(true);
-    fetchDir(currentPath).then((result) => {
-      setRawNodes(toFileNodes(result, currentPath));
-      setSelectedPaths(new Set());
-      setLoading(false);
-    });
+    fetchDir(currentPath)
+      .then((result) => {
+        setPathNotFound(false);
+        setRawNodes(toFileNodes(result, currentPath));
+        setSelectedPaths(new Set());
+      })
+      .catch((err: RustApiError) => {
+        if (err.status === 404) {
+          setPathNotFound(true);
+          setRawNodes([]);
+        }
+      })
+      .finally(() => setLoading(false));
   }, [currentPath, fetchDir]);
 
   const mvMut = api.sshTerminal.mv.useMutation({ onSuccess: refresh });
@@ -268,13 +292,23 @@ export default function SshFileTree({
     if (!connected) return;
     let cancelled = false;
     setLoading(true);
-    fetchDir(currentPath).then((result) => {
-      if (!cancelled) {
-        setRawNodes(toFileNodes(result, currentPath));
-        setSelectedPaths(new Set());
-        setLoading(false);
-      }
-    });
+    fetchDir(currentPath)
+      .then((result) => {
+        if (!cancelled) {
+          setPathNotFound(false);
+          setRawNodes(toFileNodes(result, currentPath));
+          setSelectedPaths(new Set());
+        }
+      })
+      .catch((err: RustApiError) => {
+        if (!cancelled && err.status === 404) {
+          setPathNotFound(true);
+          setRawNodes([]);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
     return () => {
       cancelled = true;
     };
@@ -682,6 +716,11 @@ export default function SshFileTree({
         {loading ? (
           <div className="flex items-center justify-center h-full">
             <Spin size="small" />
+          </div>
+        ) : pathNotFound ? (
+          <div className="h-full flex flex-col items-center justify-center gap-2 select-none text-sm text-[var(--text-quaternary)]">
+            <FolderOpen size={32} strokeWidth={1.5} />
+            <span>{t("fileManager.pathNotFound")}</span>
           </div>
         ) : (
           <FileGrid

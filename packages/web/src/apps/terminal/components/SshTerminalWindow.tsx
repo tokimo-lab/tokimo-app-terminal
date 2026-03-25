@@ -711,8 +711,10 @@ export default function SshTerminalWindow({
                   uploadQueue={uploadQueue}
                   onUploadFiles={handleUploadFiles}
                   connectionLabel={win?.title}
+                  initialPath={win?.metadata.sshInitialCwd}
                   onPathChange={(p) => {
                     fileBrowserPathRef.current = p;
+                    updateMetadata(windowId, { sshInitialCwd: p });
                   }}
                 />
               ) : bottomTab === "processes" ? (
