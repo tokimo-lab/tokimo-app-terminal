@@ -21,13 +21,15 @@ import {
   Network,
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useWindowManager } from "../../contexts/WindowManagerContext";
+import {
+  useAuth,
+  useThemeContext,
+  useWindowActive,
+  useWindowManager,
+} from "@/system";
 import { api } from "../../generated/rust-api";
 import type { SshHostStats } from "../../generated/rust-types/SshHostStats";
-import { useAuth } from "../../hooks";
-import { useThemeContext } from "../../hooks/ThemeContext";
 import { getComponentSettings } from "../../lib/settings-helpers";
-import { useWindowActive } from "../window-manager/WindowActiveContext";
 import SshDockerPanel from "./SshDockerPanel";
 import type { UploadItem, UploadQueue } from "./SshFileTree";
 import SshFileTree from "./SshFileTree";
@@ -558,7 +560,7 @@ export default function SshTerminalWindow({
   return (
     <div ref={wrapperRef} className="relative h-full w-full flex flex-col">
       {/* ── Top bar: status + CPU/memory gauges + reconnect ── */}
-      <div className="flex items-center justify-between px-3 py-1.5 bg-black/[0.04] dark:bg-zinc-900/40 border-b border-black/[0.08] dark:border-zinc-800/60 shrink-0">
+      <div className="flex items-center justify-between px-3 py-1.5 bg-black/[0.04] dark:bg-zinc-900/40 border-b border-black/[0.08] dark:border-zinc-800/60 shrink-0 select-none">
         <div className="flex items-center gap-3 text-xs">
           <div className="flex items-center gap-1.5">
             <span
@@ -652,7 +654,7 @@ export default function SshTerminalWindow({
           {/* biome-ignore lint/a11y/noStaticElementInteractions: drag/click area */}
           {/* biome-ignore lint/a11y/useKeyWithClickEvents: collapse toggle, keyboard not needed */}
           <div
-            className="flex items-center shrink-0 border-b border-black/[0.06] dark:border-zinc-800/40 cursor-pointer"
+            className="flex items-center shrink-0 border-b border-black/[0.06] dark:border-zinc-800/40 cursor-pointer select-none"
             onClick={handleToggleCollapse}
           >
             <TabButton

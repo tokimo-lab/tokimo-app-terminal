@@ -28,9 +28,8 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useWindowManager } from "../../contexts/WindowManagerContext";
+import { useAuth, useWindowManager } from "@/system";
 import { api, type RustApiError } from "../../generated/rust-api";
-import { useAuth } from "../../hooks/useAuth";
 import { getComponentSettings } from "../../lib/settings-helpers";
 import {
   buildDragPayload,

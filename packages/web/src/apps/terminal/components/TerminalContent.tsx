@@ -4,7 +4,7 @@
 
 import { Spin } from "@tokiomo/components";
 import { lazy, Suspense } from "react";
-import type { WindowState } from "../../../contexts/WindowManagerContext";
+import type { WindowState } from "@/system";
 
 const SshTerminalWindow = lazy(
   () => import("../../terminal/SshTerminalWindow"),

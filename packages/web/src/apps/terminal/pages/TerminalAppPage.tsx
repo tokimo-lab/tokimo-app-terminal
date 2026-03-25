@@ -8,8 +8,8 @@
 import { Button, Modal, Spin } from "@tokiomo/components";
 import { ArrowLeft, Monitor, Plus } from "lucide-react";
 import { useCallback } from "react";
+import { useWindowNav } from "@/system";
 import SshTerminalForm from "../../components/terminal/SshTerminalForm";
-import { useWindowNav } from "../../components/window-manager/WindowNavContext";
 import {
   api,
   type CreateSshTerminalInput,
@@ -97,7 +97,7 @@ function TerminalCardGrid({ appId }: { appId: string | undefined }) {
           // biome-ignore lint/a11y/noStaticElementInteractions: double-click to open terminal
           <div
             key={terminal.id}
-            className="group relative flex h-[89px] flex-col rounded-xl border transition-all border-[var(--glass-border)] bg-[var(--bg-glass)] hover:border-[var(--glass-border-hover)] hover:bg-[var(--bg-glass-hover)] cursor-pointer"
+            className="group relative flex h-[100px] flex-col rounded-xl border transition-all border-[var(--glass-border)] bg-[var(--bg-glass)] hover:border-[var(--glass-border-hover)] hover:bg-[var(--bg-glass-hover)] cursor-pointer"
             onDoubleClick={() => handleOpenTerminal(terminal)}
           >
             {/* Content */}
@@ -159,7 +159,7 @@ function TerminalCardGrid({ appId }: { appId: string | undefined }) {
         {/* Add card — dashed border, same size as terminal cards, centered content */}
         <button
           type="button"
-          className="flex h-[89px] items-center justify-center rounded-xl border border-dashed border-[var(--glass-border)] text-[var(--text-quaternary)] transition-colors hover:border-[var(--glass-border-hover)] hover:text-[var(--text-tertiary)] hover:bg-[var(--bg-glass-hover)] cursor-pointer"
+          className="flex h-[100px] items-center justify-center rounded-xl border border-dashed border-[var(--glass-border)] text-[var(--text-quaternary)] transition-colors hover:border-[var(--glass-border-hover)] hover:text-[var(--text-tertiary)] hover:bg-[var(--bg-glass-hover)] cursor-pointer"
           onClick={() =>
             navigate("新建终端", {
               appId,
