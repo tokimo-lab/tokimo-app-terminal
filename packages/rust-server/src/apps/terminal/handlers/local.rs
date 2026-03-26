@@ -13,6 +13,7 @@ use portable_pty::{CommandBuilder, NativePtySystem, PtySize, PtySystem};
 use serde::Deserialize;
 use tokio::sync::mpsc;
 use uuid::Uuid;
+use crate::thread_util::named_spawn_blocking;
 
 use crate::error::AppError;
 use crate::handlers::user::AdminUser;
@@ -133,7 +134,7 @@ async fn handle_terminal_session(
 
             // Task: read PTY output → output channel
             let output_tx_c = output_tx.clone();
-            tokio::task::spawn_blocking(move || {
+            named_spawn_blocking("pty-reader", move || {
                 let mut reader = reader;
                 let mut buf = [0u8; 4096];
                 loop {
@@ -149,7 +150,7 @@ async fn handle_terminal_session(
             });
 
             // Task: write to PTY stdin + handle resize
-            tokio::task::spawn_blocking(move || {
+            named_spawn_blocking("pty-writer", move || {
                 let mut writer = writer;
                 while let Some(input) = input_rx.blocking_recv() {
                     match input {
