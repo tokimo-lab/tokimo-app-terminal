@@ -632,7 +632,7 @@ export default function SshTerminalWindow({
       {/* ── Terminal area ── */}
       <div
         ref={containerRef}
-        className="flex-1 overflow-hidden [&_.xterm-viewport]:!overflow-y-auto [&_.xterm-viewport]:!bg-transparent [&_.xterm]:!bg-transparent"
+        className="flex-1 overflow-hidden p-2 [&_.xterm-viewport]:!overflow-y-auto [&_.xterm-viewport]:!bg-transparent [&_.xterm]:!bg-transparent"
       />
 
       {/* ── Drag handle ── */}

@@ -3,12 +3,11 @@ use std::sync::Arc;
 use axum::{
     body::Body,
     extract::{
-        ws::{Message, WebSocket, WebSocketUpgrade},
         Multipart, Path, Query, State,
+        ws::{Message, WebSocket, WebSocketUpgrade},
     },
     response::{IntoResponse, Json},
 };
-use bytes::Bytes;
 use futures_util::{SinkExt, StreamExt};
 use rust_ssh_terminal::SshCredentials;
 use serde::Deserialize;
@@ -16,12 +15,12 @@ use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
 use uuid::Uuid;
 
+use crate::AppState;
 use crate::db::repos::ssh_terminal_repo::SshTerminalRepo;
 use crate::error::AppError;
 use crate::handlers::media::stream::mime_for;
 use crate::handlers::user::AuthUser;
-use crate::handlers::{ok, ok_empty, ApiResponse};
-use crate::AppState;
+use crate::handlers::{ApiResponse, ok, ok_empty};
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -316,7 +315,7 @@ async fn handle_ssh_ws(
     let (mut ws_sink, mut ws_stream) = socket.split();
 
     // Per-client output channel (capacity large enough to buffer history replay).
-    let (client_tx, mut client_rx) = mpsc::channel::<Vec<u8>>(1024);
+    let (client_tx, mut client_rx) = mpsc::channel::<bytes::Bytes>(1024);
 
     let session_id = session_id.unwrap_or_else(|| Uuid::new_v4().to_string());
 
@@ -328,16 +327,18 @@ async fn handle_ssh_ws(
             // Replay scrollback so the reconnecting client sees previous output.
             if !entry.history.is_empty() {
                 // best-effort; channel is freshly created so this won't block.
-                let _ = client_tx.try_send(entry.history.clone());
+                let _ = client_tx.try_send(bytes::Bytes::from(entry.history.clone()));
             }
             // The session is already authenticated & running — tell the client immediately.
-            let _ = client_tx.try_send(rust_ssh_terminal::session::SSH_READY_MARKER.to_vec());
+            let _ = client_tx.try_send(bytes::Bytes::from_static(
+                rust_ssh_terminal::session::SSH_READY_MARKER,
+            ));
             entry.clients.push(client_tx);
             entry.input_tx.clone()
         } else {
             // New session: open SSH shell and register in the map.
             let (input_tx, input_rx) = mpsc::channel::<rust_ssh_terminal::ShellInput>(256);
-            let (output_tx, mut output_rx) = mpsc::channel::<Vec<u8>>(256);
+            let (output_tx, mut output_rx) = mpsc::channel::<bytes::Bytes>(256);
 
             reg.insert(
                 session_id.clone(),
@@ -598,9 +599,7 @@ pub async fn ssh_terminal_download(
 
     // Convert the mpsc receiver into an Axum streaming body.
     let byte_stream = ReceiverStream::new(rx).map(|chunk| {
-        chunk
-            .map(Bytes::from)
-            .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))
+        chunk.map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))
     });
 
     let content_type = mime_for(&query.path);

@@ -240,7 +240,7 @@ export default function WebTerminal({
       )}
       <div
         ref={containerRef}
-        className={`overflow-hidden [&_.xterm-viewport]:!overflow-y-auto [&_.xterm-viewport]:!bg-transparent [&_.xterm]:!bg-transparent [&_.xterm]:!p-0 ${borderless ? "min-h-0 flex-1" : "rounded-lg border border-zinc-800"}`}
+        className={`overflow-hidden p-2 [&_.xterm-viewport]:!overflow-y-auto [&_.xterm-viewport]:!bg-transparent [&_.xterm]:!bg-transparent [&_.xterm]:!p-0 ${borderless ? "min-h-0 flex-1" : "rounded-lg border border-zinc-800"}`}
         style={borderless ? undefined : { height, minHeight }}
       />
     </div>

@@ -8,7 +8,8 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use tokio::sync::{mpsc, Mutex};
+use bytes::Bytes;
+use tokio::sync::{Mutex, mpsc};
 
 /// Maximum bytes retained in the scrollback history buffer per session.
 const HISTORY_MAX_BYTES: usize = 512 * 1024; // 512 KB
@@ -20,13 +21,13 @@ pub struct SshSessionEntry {
     /// Rolling scrollback buffer (oldest bytes trimmed when it exceeds `HISTORY_MAX_BYTES`).
     pub history: Vec<u8>,
     /// Output channels to currently-connected WebSocket bridges.
-    pub clients: Vec<mpsc::Sender<Vec<u8>>>,
+    pub clients: Vec<mpsc::Sender<Bytes>>,
 }
 
 impl SshSessionEntry {
     /// Append `data` to the history buffer and fan it out to all live clients.
     /// Stale senders (whose receivers have been dropped) are removed automatically.
-    pub fn broadcast(&mut self, data: Vec<u8>) {
+    pub fn broadcast(&mut self, data: Bytes) {
         // Don't store the ready marker in scrollback — it's a one-time control signal.
         if data != rust_ssh_terminal::session::SSH_READY_MARKER {
             self.history.extend_from_slice(&data);
