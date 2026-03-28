@@ -28,7 +28,7 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useAuth, useWindowManager } from "@/system";
+import { useAuth, useWindowActions } from "@/system";
 import { api, type RustApiError } from "../../generated/rust-api";
 import { getComponentSettings } from "../../lib/settings-helpers";
 import {
@@ -215,7 +215,7 @@ export default function SshFileTree({
   const [deleteConfirm, setDeleteConfirm] = useState(false);
 
   // Window manager for opening files in Monaco editor
-  const windowManager = useWindowManager();
+  const windowManager = useWindowActions();
   const { transfers, createTransfer } = useTransfer();
 
   // ─── Auto-refresh when an incoming transfer completes ───

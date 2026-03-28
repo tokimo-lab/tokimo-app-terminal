@@ -23,9 +23,10 @@ import {
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   useAuth,
-  useThemeContext,
+  useThemeCore,
+  useWindowActions,
   useWindowActive,
-  useWindowManager,
+  useWindowState,
 } from "@/system";
 import { api } from "../../generated/rust-api";
 import type { SshHostStats } from "../../generated/rust-types/SshHostStats";
@@ -68,8 +69,9 @@ export default function SshTerminalWindow({
   terminalId,
   windowId,
 }: SshTerminalWindowProps) {
-  const { windows, openWindow, updateMetadata } = useWindowManager();
-  const { theme } = useThemeContext();
+  const { windows } = useWindowState();
+  const { openWindow, updateMetadata } = useWindowActions();
+  const { theme } = useThemeCore();
   const { user } = useAuth();
   const terminalColorScheme = ((
     (user ? getComponentSettings(user, "terminal") : {})?.theme as Record<
