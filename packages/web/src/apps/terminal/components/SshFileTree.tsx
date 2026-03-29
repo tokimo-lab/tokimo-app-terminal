@@ -739,6 +739,7 @@ export default function SshFileTree({
             onEmptyContextMenu={handleEmptyContextMenu}
             onRenameSubmit={(_path: string, _name: string) => {}}
             onRenameCancel={() => {}}
+            onSelectPaths={() => {}}
             onClearSelection={clearSelection}
             onDragStart={handleDragStart}
             onDragEnd={handleDragEnd}
