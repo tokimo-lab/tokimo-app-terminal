@@ -2,6 +2,7 @@
  * Docker container detail / inspect view for SSH Docker panel.
  * Shows container config, mounts, env, networks, etc.
  */
+import { LoadingOutlined } from "@tokiomo/components";
 import { ArrowLeft, RefreshCw } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { api } from "../../generated/rust-api";
@@ -59,7 +60,11 @@ export default function DockerInspectView({
           onClick={fetchInspect}
           className="p-0.5 text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 transition-colors ml-auto"
         >
-          <RefreshCw className={`h-3 w-3 ${loading ? "animate-spin" : ""}`} />
+          {loading ? (
+            <LoadingOutlined className="h-3 w-3" />
+          ) : (
+            <RefreshCw className="h-3 w-3" />
+          )}
         </button>
       </div>
 

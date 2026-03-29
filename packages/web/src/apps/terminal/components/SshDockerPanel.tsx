@@ -3,6 +3,7 @@
  * Sub-tabs: 容器 / 镜像 / 网络 / 存储卷 / 监控.
  * All presented in table format with full CRUD actions.
  */
+import { LoadingOutlined } from "@tokiomo/components";
 import {
   Activity,
   ArrowLeft,
@@ -309,7 +310,11 @@ export default function SshDockerPanel({
             className="p-0.5 text-zinc-500 dark:text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300 transition-colors"
             title="刷新"
           >
-            <RefreshCw className={`h-3 w-3 ${loading ? "animate-spin" : ""}`} />
+            {loading ? (
+              <LoadingOutlined className="h-3 w-3" />
+            ) : (
+              <RefreshCw className="h-3 w-3" />
+            )}
           </button>
         </div>
       </div>

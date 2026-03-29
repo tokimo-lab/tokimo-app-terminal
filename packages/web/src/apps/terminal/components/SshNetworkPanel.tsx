@@ -3,6 +3,7 @@
  * Fetches network info via /api/ssh-terminals/{id}/net endpoint.
  * Displays interfaces, listening sockets, and active connections.
  */
+import { LoadingOutlined } from "@tokiomo/components";
 import { Network, RefreshCw } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { api } from "../../generated/rust-api";
@@ -87,7 +88,11 @@ export default function SshNetworkPanel({
           className="p-0.5 text-zinc-500 dark:text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300 transition-colors"
           title="刷新网络信息"
         >
-          <RefreshCw className={`h-3 w-3 ${loading ? "animate-spin" : ""}`} />
+          {loading ? (
+            <LoadingOutlined className="h-3 w-3" />
+          ) : (
+            <RefreshCw className="h-3 w-3" />
+          )}
         </button>
       </div>
 
