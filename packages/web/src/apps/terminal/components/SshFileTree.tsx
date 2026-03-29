@@ -28,9 +28,6 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useAuth, useWindowActions } from "@/system";
-import { api, type RustApiError } from "../../generated/rust-api";
-import { getComponentSettings } from "../../lib/settings-helpers";
 import {
   buildDragPayload,
   buildTransferRequest,
@@ -38,8 +35,11 @@ import {
   isCrossStorageDrop,
   readDragPayload,
   writeDragPayload,
-} from "../transfer/drag-drop";
-import { useTransfer } from "../transfer/use-transfer";
+} from "@/apps/transfer/components/drag-drop";
+import { useTransfer } from "@/apps/transfer/components/use-transfer";
+import { api, type RustApiError } from "@/generated/rust-api";
+import { getComponentSettings } from "@/lib/settings-helpers";
+import { useAuth, useWindowActions } from "@/system";
 import { formatBytes } from "./ssh-terminal-utils";
 
 // ── Upload queue types ────────────────────────────────────────────────────────
@@ -57,18 +57,21 @@ export interface UploadItem {
 
 export type UploadQueue = UploadItem[];
 
-import type { SshFileEntry } from "../../generated/rust-types/SshFileEntry";
-import { FileBreadcrumb } from "../file-manager/FileBreadcrumb";
-import { FileGrid } from "../file-manager/FileGrid";
-import { NewFolderModal, RenameModal } from "../file-manager/FileModals";
-import { FileToolbar } from "../file-manager/FileToolbar";
+import { FileBreadcrumb } from "@/apps/files/components/FileBreadcrumb";
+import { FileGrid } from "@/apps/files/components/FileGrid";
+import {
+  NewFolderModal,
+  RenameModal,
+} from "@/apps/files/components/FileModals";
+import { FileToolbar } from "@/apps/files/components/FileToolbar";
 import type {
   FileNode,
   SortBy,
   SortDir,
   ViewMode,
-} from "../file-manager/types";
-import { sortNodes } from "../file-manager/types";
+} from "@/apps/files/components/types";
+import { sortNodes } from "@/apps/files/components/types";
+import type { SshFileEntry } from "@/generated/rust-types/SshFileEntry";
 
 export interface SshFileTreeProps {
   terminalId: string;

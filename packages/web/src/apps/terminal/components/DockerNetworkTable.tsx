@@ -6,8 +6,8 @@
 import { useContextMenu } from "@tokiomo/components";
 import { Trash2 } from "lucide-react";
 import { useCallback } from "react";
-import { api } from "../../generated/rust-api";
-import type { DockerNetworkEntry } from "../../generated/rust-types/DockerNetworkEntry";
+import { api } from "@/generated/rust-api";
+import type { DockerNetworkEntry } from "@/generated/rust-types/DockerNetworkEntry";
 
 /** Built-in networks that cannot be removed */
 const PROTECTED_NETWORKS = new Set(["bridge", "host", "none"]);

@@ -4,7 +4,7 @@ import type {
   CreateSshTerminalInput,
   SshTerminalOutput,
   UpdateSshTerminalInput,
-} from "../../generated/rust-api";
+} from "@/generated/rust-api";
 
 interface SshTerminalFormProps {
   appId: string;

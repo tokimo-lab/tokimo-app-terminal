@@ -6,8 +6,8 @@
 import { useContextMenu } from "@tokiomo/components";
 import { Eraser, Trash2 } from "lucide-react";
 import { useCallback, useState } from "react";
-import { api } from "../../generated/rust-api";
-import type { DockerImageEntry } from "../../generated/rust-types/DockerImageEntry";
+import { api } from "@/generated/rust-api";
+import type { DockerImageEntry } from "@/generated/rust-types/DockerImageEntry";
 
 interface DockerImageTableProps {
   terminalId: string;

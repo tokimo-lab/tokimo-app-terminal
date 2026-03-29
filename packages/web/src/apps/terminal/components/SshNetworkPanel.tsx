@@ -6,11 +6,11 @@
 import { LoadingOutlined } from "@tokiomo/components";
 import { Network, RefreshCw } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
-import { api } from "../../generated/rust-api";
-import type { SshConnectionEntry } from "../../generated/rust-types/SshConnectionEntry";
-import type { SshListeningSocketEntry } from "../../generated/rust-types/SshListeningSocketEntry";
-import type { SshNetworkInterfaceEntry } from "../../generated/rust-types/SshNetworkInterfaceEntry";
-import type { SshRouteEntry } from "../../generated/rust-types/SshRouteEntry";
+import { api } from "@/generated/rust-api";
+import type { SshConnectionEntry } from "@/generated/rust-types/SshConnectionEntry";
+import type { SshListeningSocketEntry } from "@/generated/rust-types/SshListeningSocketEntry";
+import type { SshNetworkInterfaceEntry } from "@/generated/rust-types/SshNetworkInterfaceEntry";
+import type { SshRouteEntry } from "@/generated/rust-types/SshRouteEntry";
 import { formatBytes } from "./ssh-terminal-utils";
 
 interface SshNetworkPanelProps {

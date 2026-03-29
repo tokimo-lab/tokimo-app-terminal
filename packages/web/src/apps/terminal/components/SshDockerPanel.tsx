@@ -16,13 +16,13 @@ import {
   ScrollText,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { api } from "../../generated/rust-api";
-import type { DockerContainerEntry } from "../../generated/rust-types/DockerContainerEntry";
-import type { DockerImageEntry } from "../../generated/rust-types/DockerImageEntry";
-import type { DockerNetworkEntry } from "../../generated/rust-types/DockerNetworkEntry";
-import type { DockerStatsEntry } from "../../generated/rust-types/DockerStatsEntry";
-import type { DockerVolumeEntry } from "../../generated/rust-types/DockerVolumeEntry";
-import XTermLogViewer from "../dashboard/XTermLogViewer";
+import XTermLogViewer from "@/apps/downloads/components/XTermLogViewer";
+import { api } from "@/generated/rust-api";
+import type { DockerContainerEntry } from "@/generated/rust-types/DockerContainerEntry";
+import type { DockerImageEntry } from "@/generated/rust-types/DockerImageEntry";
+import type { DockerNetworkEntry } from "@/generated/rust-types/DockerNetworkEntry";
+import type { DockerStatsEntry } from "@/generated/rust-types/DockerStatsEntry";
+import type { DockerVolumeEntry } from "@/generated/rust-types/DockerVolumeEntry";
 import DockerContainerTable from "./DockerContainerTable";
 import DockerImageTable from "./DockerImageTable";
 import DockerInspectView from "./DockerInspectView";

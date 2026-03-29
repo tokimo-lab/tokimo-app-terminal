@@ -6,8 +6,8 @@
 import { useContextMenu } from "@tokiomo/components";
 import { Trash2 } from "lucide-react";
 import { useCallback } from "react";
-import { api } from "../../generated/rust-api";
-import type { DockerVolumeEntry } from "../../generated/rust-types/DockerVolumeEntry";
+import { api } from "@/generated/rust-api";
+import type { DockerVolumeEntry } from "@/generated/rust-types/DockerVolumeEntry";
 
 interface DockerVolumeTableProps {
   terminalId: string;

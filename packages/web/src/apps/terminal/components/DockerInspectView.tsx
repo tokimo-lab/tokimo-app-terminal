@@ -5,8 +5,8 @@
 import { LoadingOutlined } from "@tokiomo/components";
 import { ArrowLeft, RefreshCw } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
-import { api } from "../../generated/rust-api";
-import type { DockerContainerInspect } from "../../generated/rust-types/DockerContainerInspect";
+import { api } from "@/generated/rust-api";
+import type { DockerContainerInspect } from "@/generated/rust-types/DockerContainerInspect";
 
 interface DockerInspectViewProps {
   terminalId: string;

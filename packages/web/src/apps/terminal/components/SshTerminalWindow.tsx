@@ -21,6 +21,9 @@ import {
   Network,
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { api } from "@/generated/rust-api";
+import type { SshHostStats } from "@/generated/rust-types/SshHostStats";
+import { getComponentSettings } from "@/lib/settings-helpers";
 import {
   useAuth,
   useThemeCore,
@@ -28,9 +31,6 @@ import {
   useWindowActive,
   useWindowState,
 } from "@/system";
-import { api } from "../../generated/rust-api";
-import type { SshHostStats } from "../../generated/rust-types/SshHostStats";
-import { getComponentSettings } from "../../lib/settings-helpers";
 import SshDockerPanel from "./SshDockerPanel";
 import type { UploadItem, UploadQueue } from "./SshFileTree";
 import SshFileTree from "./SshFileTree";

@@ -6,8 +6,8 @@
 import { useContextMenu } from "@tokiomo/components";
 import { RefreshCw } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
-import { api } from "../../generated/rust-api";
-import type { SshProcessEntry } from "../../generated/rust-types/SshProcessEntry";
+import { api } from "@/generated/rust-api";
+import type { SshProcessEntry } from "@/generated/rust-types/SshProcessEntry";
 import { formatBytes } from "./ssh-terminal-utils";
 
 interface SshProcessListProps {

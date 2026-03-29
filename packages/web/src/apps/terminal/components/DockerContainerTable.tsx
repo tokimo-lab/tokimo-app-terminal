@@ -19,8 +19,8 @@ import {
   Trash2,
 } from "lucide-react";
 import { useCallback } from "react";
-import { api } from "../../generated/rust-api";
-import type { DockerContainerEntry } from "../../generated/rust-types/DockerContainerEntry";
+import { api } from "@/generated/rust-api";
+import type { DockerContainerEntry } from "@/generated/rust-types/DockerContainerEntry";
 
 interface DockerContainerTableProps {
   terminalId: string;

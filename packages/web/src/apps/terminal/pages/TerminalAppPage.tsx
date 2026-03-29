@@ -8,14 +8,14 @@
 import { Button, Modal, Spin } from "@tokiomo/components";
 import { ArrowLeft, Monitor, Plus } from "lucide-react";
 import { useCallback } from "react";
-import { useWindowNav } from "@/system";
-import SshTerminalForm from "../../components/terminal/SshTerminalForm";
+import SshTerminalForm from "@/apps/terminal/components/SshTerminalForm";
 import {
   api,
   type CreateSshTerminalInput,
   type SshTerminalOutput,
   type UpdateSshTerminalInput,
-} from "../../generated/rust-api";
+} from "@/generated/rust-api";
+import { useWindowNav } from "@/system";
 
 export default function TerminalAppPage() {
   const { params } = useWindowNav();

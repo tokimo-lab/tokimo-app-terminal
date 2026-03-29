@@ -6,8 +6,8 @@
 import { LoadingOutlined } from "@tokiomo/components";
 import { HardDrive, RefreshCw } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
-import { api } from "../../generated/rust-api";
-import type { SshDiskEntry } from "../../generated/rust-types/SshDiskEntry";
+import { api } from "@/generated/rust-api";
+import type { SshDiskEntry } from "@/generated/rust-types/SshDiskEntry";
 import { formatBytes } from "./ssh-terminal-utils";
 
 interface SshStoragePanelProps {
