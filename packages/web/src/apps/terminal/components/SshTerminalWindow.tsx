@@ -23,7 +23,9 @@ import {
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "@/generated/rust-api";
 import type { SshHostStats } from "@/generated/rust-types/SshHostStats";
+import { devWsBase } from "@/lib/server-base";
 import { useComponentPreference } from "@/lib/use-preference";
+import { randomUUID } from "@/lib/uuid";
 import {
   useThemeCore,
   useWindowActions,
@@ -50,18 +52,7 @@ type ConnectionStatus = "connecting" | "connected" | "disconnected" | "error";
 type BottomTab = "files" | "processes" | "storage" | "network" | "docker";
 
 function getSshWsUrl(terminalId: string, sessionId: string): string {
-  const rustServer =
-    (typeof window !== "undefined" &&
-      (import.meta.env as Record<string, string>).RUST_SERVER) ||
-    "";
-
-  const base = rustServer
-    ? rustServer.replace(/\/$/, "")
-    : window.location.origin;
-
-  const wsBase = base.replace(/^http:/, "ws:").replace(/^https:/, "wss:");
-
-  return `${wsBase}/api/ssh-terminals/ws?id=${encodeURIComponent(terminalId)}&session_id=${encodeURIComponent(sessionId)}`;
+  return `${devWsBase()}/api/ssh-terminals/ws?id=${encodeURIComponent(terminalId)}&session_id=${encodeURIComponent(sessionId)}`;
 }
 
 export default function SshTerminalWindow({
@@ -83,7 +74,7 @@ export default function SshTerminalWindow({
   // ── Session ID: stable UUID that survives page refreshes via metadata ──
   // Use the one already persisted in metadata, or generate a new one on first open.
   const sessionIdRef = useRef<string>(
-    win?.metadata.sshSessionId || crypto.randomUUID(),
+    win?.metadata.sshSessionId || randomUUID(),
   );
   // Persist once on first render if it wasn't already in metadata.
   const sessionIdPersisted = useRef(false);
@@ -126,7 +117,7 @@ export default function SshTerminalWindow({
     (targetDir: string, files: File[]) => {
       // Enqueue all selected files
       const newItems: UploadItem[] = files.map((f) => ({
-        id: crypto.randomUUID(),
+        id: randomUUID(),
         filename: f.name,
         size: f.size,
         loaded: 0,
@@ -327,7 +318,7 @@ export default function SshTerminalWindow({
         sshTerminalId: terminalId,
         sshHost: win?.metadata.sshHost,
         sshFileSystemId: win?.metadata.sshFileSystemId,
-        sshSessionId: crypto.randomUUID(),
+        sshSessionId: randomUUID(),
         sshInitialCwd: fileBrowserPathRef.current,
       },
     });

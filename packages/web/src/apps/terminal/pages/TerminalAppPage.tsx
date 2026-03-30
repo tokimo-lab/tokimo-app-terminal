@@ -15,6 +15,7 @@ import {
   type SshTerminalOutput,
   type UpdateSshTerminalInput,
 } from "@/generated/rust-api";
+import { randomUUID } from "@/lib/uuid";
 import { useWindowNav } from "@/system";
 
 export default function TerminalAppPage() {
@@ -73,7 +74,7 @@ function TerminalCardGrid({ appId }: { appId: string | undefined }) {
           sshTerminalId: terminal.id,
           sshHost: terminal.host,
           sshFileSystemId: terminal.fileSystemId ?? undefined,
-          sshSessionId: crypto.randomUUID(),
+          sshSessionId: randomUUID(),
         },
       });
     },

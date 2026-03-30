@@ -40,6 +40,7 @@ import { useTransfer } from "@/apps/transfer/components/use-transfer";
 import { api, type RustApiError } from "@/generated/rust-api";
 import { useComponentPreference } from "@/lib/use-preference";
 import { useWindowActions } from "@/system";
+import { buildSshFileUrl } from "@/viewer/file-url";
 import { formatBytes } from "./ssh-terminal-utils";
 
 // ── Upload queue types ────────────────────────────────────────────────────────
@@ -157,11 +158,7 @@ function getFileWindowType(
 
 /** Build the download URL for an SSH file. */
 function buildDownloadUrl(terminalId: string, filePath: string): string {
-  const base =
-    (typeof window !== "undefined" &&
-      (import.meta.env as Record<string, string>).RUST_SERVER) ||
-    "";
-  return `${base}/api/ssh-terminals/${encodeURIComponent(terminalId)}/download?path=${encodeURIComponent(filePath)}`;
+  return buildSshFileUrl(terminalId, filePath) ?? "";
 }
 
 export default function SshFileTree({
