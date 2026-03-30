@@ -57,20 +57,20 @@ export interface UploadItem {
 
 export type UploadQueue = UploadItem[];
 
-import { FileBreadcrumb } from "@/apps/files/components/FileBreadcrumb";
-import { FileGrid } from "@/apps/files/components/FileGrid";
+import { FileBreadcrumb } from "@/apps/finder/components/FileBreadcrumb";
+import { FileGrid } from "@/apps/finder/components/FileGrid";
 import {
   NewFolderModal,
   RenameModal,
-} from "@/apps/files/components/FileModals";
-import { FileToolbar } from "@/apps/files/components/FileToolbar";
+} from "@/apps/finder/components/FileModals";
+import { FileToolbar } from "@/apps/finder/components/FileToolbar";
 import type {
   FileNode,
   SortBy,
   SortDir,
   ViewMode,
-} from "@/apps/files/components/types";
-import { sortNodes } from "@/apps/files/components/types";
+} from "@/apps/finder/components/types";
+import { sortNodes } from "@/apps/finder/components/types";
 import type { SshFileEntry } from "@/generated/rust-types/SshFileEntry";
 
 export interface SshFileTreeProps {
