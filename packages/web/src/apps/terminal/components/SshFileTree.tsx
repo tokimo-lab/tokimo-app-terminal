@@ -38,8 +38,8 @@ import {
 } from "@/apps/transfer/components/drag-drop";
 import { useTransfer } from "@/apps/transfer/components/use-transfer";
 import { api, type RustApiError } from "@/generated/rust-api";
-import { getComponentSettings } from "@/lib/settings-helpers";
-import { useAuth, useWindowActions } from "@/system";
+import { useComponentPreference } from "@/lib/use-preference";
+import { useWindowActions } from "@/system";
 import { formatBytes } from "./ssh-terminal-utils";
 
 // ── Upload queue types ────────────────────────────────────────────────────────
@@ -189,15 +189,11 @@ export default function SshFileTree({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const uploadTargetRef = useRef<string>("/");
 
-  // Read initial viewMode from user settings
-  const { user } = useAuth();
-  const savedViewMode = user
-    ? (
-        getComponentSettings(user, "terminal")?.fileBrowser as
-          | Record<string, unknown>
-          | undefined
-      )?.viewMode
-    : undefined;
+  // Read initial viewMode from user preferences
+  const terminalPref = useComponentPreference("terminal");
+  const savedViewMode = (
+    terminalPref.data?.fileBrowser as Record<string, unknown> | undefined
+  )?.viewMode;
 
   // View state
   const [viewMode, setViewMode] = useState<ViewMode>(

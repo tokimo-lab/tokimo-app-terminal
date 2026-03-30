@@ -23,9 +23,8 @@ import {
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "@/generated/rust-api";
 import type { SshHostStats } from "@/generated/rust-types/SshHostStats";
-import { getComponentSettings } from "@/lib/settings-helpers";
+import { useComponentPreference } from "@/lib/use-preference";
 import {
-  useAuth,
   useThemeCore,
   useWindowActions,
   useWindowActive,
@@ -72,12 +71,9 @@ export default function SshTerminalWindow({
   const { windows } = useWindowState();
   const { openWindow, updateMetadata } = useWindowActions();
   const { theme } = useThemeCore();
-  const { user } = useAuth();
+  const terminalPref = useComponentPreference("terminal");
   const terminalColorScheme = ((
-    (user ? getComponentSettings(user, "terminal") : {})?.theme as Record<
-      string,
-      unknown
-    >
+    terminalPref.data?.theme as Record<string, unknown>
   )?.colorScheme ?? "auto") as TerminalThemeId;
   const resolvedThemeRef = useRef(getTerminalTheme(terminalColorScheme, theme));
   const win = windows.find((w) => w.id === windowId);
