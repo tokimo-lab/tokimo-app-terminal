@@ -44,8 +44,12 @@ import { getTerminalTheme, type TerminalThemeId } from "./terminal-themes";
 interface SshTerminalWindowProps {
   /** SSH terminal config ID (uuid) */
   terminalId: string;
-  /** Window manager window ID for metadata persistence */
-  windowId: string;
+  /** Window manager window ID for metadata persistence (optional when embedded) */
+  windowId?: string;
+  /** Stable session ID provided externally (used when embedded without a window) */
+  initialSessionId?: string;
+  /** Connection label for display (e.g. "root@10.0.0.1"), used when no window title */
+  connectionLabel?: string;
 }
 
 type ConnectionStatus = "connecting" | "connected" | "disconnected" | "error";
@@ -58,6 +62,8 @@ function getSshWsUrl(terminalId: string, sessionId: string): string {
 export default function SshTerminalWindow({
   terminalId,
   windowId,
+  initialSessionId,
+  connectionLabel: connectionLabelProp,
 }: SshTerminalWindowProps) {
   const { windows } = useWindowState();
   const { openWindow, updateMetadata } = useWindowActions();
@@ -67,18 +73,18 @@ export default function SshTerminalWindow({
     terminalPref.data?.theme as Record<string, unknown>
   )?.colorScheme ?? "auto") as TerminalThemeId;
   const resolvedThemeRef = useRef(getTerminalTheme(terminalColorScheme, theme));
-  const win = windows.find((w) => w.id === windowId);
+  const win = windowId ? windows.find((w) => w.id === windowId) : undefined;
   const savedPanelHeight = win?.metadata.sshPanelHeight || 192;
   const savedPanelCollapsed = win?.metadata.sshPanelCollapsed ?? false;
 
   // ── Session ID: stable UUID that survives page refreshes via metadata ──
   // Use the one already persisted in metadata, or generate a new one on first open.
   const sessionIdRef = useRef<string>(
-    win?.metadata.sshSessionId || randomUUID(),
+    win?.metadata.sshSessionId || initialSessionId || randomUUID(),
   );
   // Persist once on first render if it wasn't already in metadata.
   const sessionIdPersisted = useRef(false);
-  if (!sessionIdPersisted.current && win) {
+  if (!sessionIdPersisted.current && win && windowId) {
     sessionIdPersisted.current = true;
     if (!win.metadata.sshSessionId) {
       updateMetadata(windowId, { sshSessionId: sessionIdRef.current });
@@ -96,7 +102,7 @@ export default function SshTerminalWindow({
   const handleFileBrowserPathChange = useCallback(
     (p: string) => {
       fileBrowserPathRef.current = p;
-      updateMetadata(windowId, { sshInitialCwd: p });
+      if (windowId) updateMetadata(windowId, { sshInitialCwd: p });
     },
     [windowId, updateMetadata],
   );
@@ -213,7 +219,7 @@ export default function SshTerminalWindow({
   const handleToggleCollapse = useCallback(() => {
     const newCollapsed = !panelCollapsed;
     setPanelCollapsed(newCollapsed);
-    updateMetadata(windowId, { sshPanelCollapsed: newCollapsed });
+    if (windowId) updateMetadata(windowId, { sshPanelCollapsed: newCollapsed });
     requestAnimationFrame(() => {
       try {
         fitAddonRef.current?.fit();
@@ -228,7 +234,7 @@ export default function SshTerminalWindow({
       setBottomTab(tab);
       if (panelCollapsed) {
         setPanelCollapsed(false);
-        updateMetadata(windowId, { sshPanelCollapsed: false });
+        if (windowId) updateMetadata(windowId, { sshPanelCollapsed: false });
         requestAnimationFrame(() => {
           try {
             fitAddonRef.current?.fit();
@@ -265,7 +271,8 @@ export default function SshTerminalWindow({
         document.removeEventListener("mousemove", onMouseMove);
         document.removeEventListener("mouseup", onMouseUp);
         // Persist panel height to window metadata
-        updateMetadata(windowId, { sshPanelHeight: panelHeightRef.current });
+        if (windowId)
+          updateMetadata(windowId, { sshPanelHeight: panelHeightRef.current });
         // Re-fit terminal after resize
         try {
           fitAddonRef.current?.fit();
@@ -310,10 +317,10 @@ export default function SshTerminalWindow({
     // current directory (auto-cd on connect).
     openWindow({
       type: "terminal",
-      title: win?.title || terminalId,
+      title: win?.title || connectionLabelProp || terminalId,
       appId: win?.appId,
-      sourceType: win?.sourceType,
-      sourceId: win?.sourceId,
+      sourceType: win?.sourceType ?? "ssh_terminal",
+      sourceId: win?.sourceId ?? terminalId,
       metadata: {
         sshTerminalId: terminalId,
         sshHost: win?.metadata.sshHost,
@@ -322,7 +329,7 @@ export default function SshTerminalWindow({
         sshInitialCwd: fileBrowserPathRef.current,
       },
     });
-  }, [openWindow, terminalId, win]);
+  }, [openWindow, terminalId, win, connectionLabelProp]);
 
   const handleReconnect = useCallback(() => {
     if (wsRef.current) {
@@ -710,7 +717,7 @@ export default function SshTerminalWindow({
                   connected={connected}
                   uploadQueue={uploadQueue}
                   onUploadFiles={handleUploadFiles}
-                  connectionLabel={win?.title}
+                  connectionLabel={win?.title ?? connectionLabelProp}
                   initialPath={win?.metadata.sshInitialCwd}
                   onPathChange={handleFileBrowserPathChange}
                 />
