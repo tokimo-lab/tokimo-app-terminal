@@ -11,7 +11,10 @@ const SshTerminalWindow = lazy(
 );
 
 export default function TerminalContent({ win }: { win: WindowState }) {
-  if (!win.metadata.sshTerminalId) return null;
+  const terminalId = win.route?.startsWith("/terminals/")
+    ? win.route.slice("/terminals/".length)
+    : win.metadata.sshTerminalId;
+  if (!terminalId) return null;
 
   return (
     <Suspense
@@ -21,10 +24,7 @@ export default function TerminalContent({ win }: { win: WindowState }) {
         </div>
       }
     >
-      <SshTerminalWindow
-        terminalId={win.metadata.sshTerminalId}
-        windowId={win.id}
-      />
+      <SshTerminalWindow terminalId={terminalId} windowId={win.id} />
     </Suspense>
   );
 }

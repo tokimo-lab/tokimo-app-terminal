@@ -411,6 +411,7 @@ export default function SshFileTree({
             windowManager.openWindow({
               type: "transfer",
               title: t("transfer.title"),
+              route: `/transfers/${transferId}`,
               metadata: { transferId },
             });
           })
@@ -464,6 +465,7 @@ export default function SshFileTree({
       windowManager.openWindow({
         type: fileType,
         title: node.name,
+        route: node.path,
         metadata: {
           filePath: node.path,
           fileName: node.name,
@@ -651,6 +653,7 @@ export default function SshFileTree({
           windowManager.openWindow({
             type: "transfer",
             title: t("transfer.title"),
+            route: `/transfers/${transferId}`,
             metadata: { transferId },
           });
         })

@@ -4,7 +4,7 @@
  * 左侧边栏列出所有 SSH 终端，底部 "+" 新建。
  * 点击条目在右侧打开 SshTerminalWindow（内联）。
  * 切换条目时右侧状态保留（组件保持挂载，visibility 切换）。
- * 选中项和所有已激活 session 持久化到窗口 metadata，刷新不丢失。
+ * 选中项通过窗口路由持久化，已激活 session 持久化到窗口 metadata，刷新不丢失。
  */
 
 import {
@@ -21,6 +21,7 @@ import {
   Suspense,
   useCallback,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import SshTerminalForm from "@/apps/terminal/components/SshTerminalForm";
@@ -45,18 +46,13 @@ type Selection =
   | { kind: "edit"; terminalId: string }
   | { kind: "terminal"; terminalId: string };
 
-function serializeSelection(s: Selection): string | undefined {
-  if (s.kind === "none") return undefined;
-  if (s.kind === "create") return "create";
-  if (s.kind === "edit") return `edit:${s.terminalId}`;
-  return s.terminalId;
-}
-
-function deserializeSelection(v: unknown): Selection {
-  if (typeof v !== "string" || !v) return { kind: "none" };
-  if (v === "create") return { kind: "create" };
-  if (v.startsWith("edit:")) return { kind: "edit", terminalId: v.slice(5) };
-  return { kind: "terminal", terminalId: v };
+function routeToSelection(route: string): Selection {
+  if (route === "/new") return { kind: "create" };
+  const editMatch = route.match(/^\/([^/]+)\/edit$/);
+  if (editMatch) return { kind: "edit", terminalId: editMatch[1] };
+  const idMatch = route.match(/^\/([^/]+)$/);
+  if (idMatch) return { kind: "terminal", terminalId: idMatch[1] };
+  return { kind: "none" };
 }
 
 function parseSessions(v: unknown): Map<string, string> {
@@ -70,24 +66,17 @@ function parseSessions(v: unknown): Map<string, string> {
 
 export default function TerminalAppPage() {
   const toast = useToast();
-  const { params, updateMetadata } = useWindowNav();
+  const { metadata, updateMetadata, route, replace, navigate, goBack } =
+    useWindowNav();
   const { open: openCtxMenu, contextMenu } = useContextMenu();
 
-  // Restore from window metadata
-  const [selection, setSelectionRaw] = useState<Selection>(() =>
-    deserializeSelection(params.terminalSelection),
-  );
-  const [sessions, setSessionsRaw] = useState<Map<string, string>>(() =>
-    parseSessions(params.terminalSessions),
-  );
+  // Derive selection from window route
+  const selection = useMemo(() => routeToSelection(route), [route]);
+  const routeRef = useRef(route);
+  routeRef.current = route;
 
-  // Persist-aware setters
-  const setSelection = useCallback(
-    (s: Selection) => {
-      setSelectionRaw(s);
-      updateMetadata({ terminalSelection: serializeSelection(s) });
-    },
-    [updateMetadata],
+  const [sessions, setSessionsRaw] = useState<Map<string, string>>(() =>
+    parseSessions(metadata.terminalSessions),
   );
 
   const setSessions = useCallback(
@@ -107,7 +96,7 @@ export default function TerminalAppPage() {
   const createMutation = api.sshTerminal.create.useMutation({
     onSuccess: () => {
       terminalsQuery.refetch();
-      setSelection({ kind: "none" });
+      replace("/");
       toast.success("终端已创建");
     },
   });
@@ -115,7 +104,7 @@ export default function TerminalAppPage() {
   const updateMutation = api.sshTerminal.update.useMutation({
     onSuccess: () => {
       terminalsQuery.refetch();
-      setSelection({ kind: "none" });
+      replace("/");
       toast.success("终端已更新");
     },
   });
@@ -137,9 +126,9 @@ export default function TerminalAppPage() {
         next.set(t.id, randomUUID());
         return next;
       });
-      setSelection({ kind: "terminal", terminalId: t.id });
+      replace(`/${t.id}`);
     },
-    [setSelection, setSessions],
+    [replace, setSessions],
   );
 
   const handleDelete = useCallback(
@@ -156,18 +145,18 @@ export default function TerminalAppPage() {
             next.delete(t.id);
             return next;
           });
-          setSelectionRaw((prev) => {
-            if (prev.kind === "terminal" && prev.terminalId === t.id) {
-              updateMetadata({ terminalSelection: undefined });
-              return { kind: "none" };
-            }
-            return prev;
-          });
+          const cur = routeToSelection(routeRef.current);
+          if (
+            (cur.kind === "terminal" || cur.kind === "edit") &&
+            cur.terminalId === t.id
+          ) {
+            replace("/");
+          }
           return deleteMutation.mutateAsync(t.id);
         },
       });
     },
-    [deleteMutation, setSessions, updateMetadata],
+    [deleteMutation, setSessions, replace],
   );
 
   const handleContextMenu = useCallback(
@@ -177,7 +166,7 @@ export default function TerminalAppPage() {
           key: "edit",
           label: "编辑",
           icon: <Pencil size={13} />,
-          onClick: () => setSelection({ kind: "edit", terminalId: t.id }),
+          onClick: () => navigate(`/${t.id}/edit`),
         },
         { type: "divider" },
         {
@@ -190,7 +179,7 @@ export default function TerminalAppPage() {
       ];
       openCtxMenu(e, items);
     },
-    [openCtxMenu, setSelection, handleDelete],
+    [openCtxMenu, navigate, handleDelete],
   );
 
   const terminals = terminalsQuery.data ?? [];
@@ -229,7 +218,7 @@ export default function TerminalAppPage() {
           <button
             type="button"
             className="w-full flex items-center justify-center gap-1.5 rounded-md px-2 py-1.5 text-xs font-medium text-[var(--text-tertiary)] hover:text-[var(--accent)] hover:bg-[var(--accent-subtle)] transition-colors cursor-pointer"
-            onClick={() => setSelection({ kind: "create" })}
+            onClick={() => navigate("/new")}
           >
             <Plus className="h-3.5 w-3.5" />
             新建终端
@@ -249,16 +238,13 @@ export default function TerminalAppPage() {
 
         {/* Create form */}
         {selection.kind === "create" && (
-          <FormPanel
-            title="新建终端"
-            onBack={() => setSelection({ kind: "none" })}
-          >
+          <FormPanel title="新建终端" onBack={goBack}>
             <SshTerminalForm
               terminal={null}
               onSubmit={(data) =>
                 createMutation.mutate(data as CreateSshTerminalInput)
               }
-              onCancel={() => setSelection({ kind: "none" })}
+              onCancel={goBack}
               isLoading={createMutation.isPending}
             />
           </FormPanel>
@@ -269,7 +255,7 @@ export default function TerminalAppPage() {
           <EditPanel
             terminalId={selection.terminalId}
             terminals={terminals}
-            onBack={() => setSelection({ kind: "none" })}
+            onBack={goBack}
             onSubmit={(data) =>
               updateMutation.mutate(data as UpdateSshTerminalInput)
             }

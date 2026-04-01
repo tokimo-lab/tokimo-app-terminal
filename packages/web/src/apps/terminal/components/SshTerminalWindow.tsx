@@ -318,6 +318,7 @@ export default function SshTerminalWindow({
     openWindow({
       type: "terminal",
       title: win?.title || connectionLabelProp || terminalId,
+      route: `/terminals/${terminalId}`,
       appId: win?.appId,
       sourceType: win?.sourceType ?? "ssh_terminal",
       sourceId: win?.sourceId ?? terminalId,
