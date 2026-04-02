@@ -148,7 +148,7 @@ export default function SshProcessList({
       {/* Table */}
       <div className="flex-1 overflow-y-auto overflow-x-auto text-xs font-mono">
         <table className="w-full border-collapse">
-          <thead className="sticky top-0 bg-white dark:bg-zinc-900 z-10">
+          <thead className="sticky top-0 bg-surface-elevated z-10">
             <tr className="text-fg-secondary">
               <SortTh onClick={() => handleSort("pid")}>
                 PID{sortIndicator("pid")}

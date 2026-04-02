@@ -131,7 +131,7 @@ function DiskRow({ disk }: { disk: SshDiskEntry }) {
       <td className="px-3 py-1.5">
         <div className="flex items-center gap-1.5">
           <HardDrive className="h-3 w-3 shrink-0 text-[var(--accent-text)]" />
-          <span className="text-zinc-800 dark:text-zinc-200 truncate max-w-32">
+          <span className="text-fg-primary truncate max-w-32">
             {disk.mountPoint}
           </span>
         </div>

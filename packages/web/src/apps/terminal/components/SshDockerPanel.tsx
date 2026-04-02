@@ -421,7 +421,7 @@ function DockerStatsTable({
 
   return (
     <table className="w-full border-collapse text-xs font-mono">
-      <thead className="sticky top-0 bg-white dark:bg-zinc-900 z-10">
+      <thead className="sticky top-0 bg-surface-elevated z-10">
         <tr className="text-fg-secondary">
           <th className="px-2 py-1 text-left font-normal">CONTAINER</th>
           <th className="px-2 py-1 text-right font-normal">CPU %</th>
@@ -438,7 +438,7 @@ function DockerStatsTable({
             key={s.containerId}
             className="text-fg-secondary hover:bg-black/[0.04] dark:hover:bg-zinc-800/50"
           >
-            <td className="px-2 py-0.5 text-zinc-800 dark:text-zinc-200 truncate max-w-32">
+            <td className="px-2 py-0.5 text-fg-primary truncate max-w-32">
               {s.name}
             </td>
             <td className="px-2 py-0.5 text-right tabular-nums">

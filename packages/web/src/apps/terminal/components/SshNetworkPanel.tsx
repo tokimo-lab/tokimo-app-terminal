@@ -129,7 +129,7 @@ function SubTabButton({
       onClick={onClick}
       className={`text-[10px] px-1.5 py-0.5 rounded transition-colors ${
         active
-          ? "text-zinc-800 dark:text-zinc-200 bg-black/[0.08] dark:bg-zinc-700/60"
+          ? "text-fg-primary bg-black/[0.08] dark:bg-zinc-700/60"
           : "text-fg-muted hover:text-zinc-800 dark:hover:text-zinc-400"
       }`}
     >
@@ -175,9 +175,7 @@ function InterfaceRow({ iface }: { iface: SshNetworkInterfaceEntry }) {
       <td className="px-3 py-1.5">
         <div className="flex items-center gap-1.5">
           <Network className="h-3 w-3 shrink-0 text-[var(--accent-text)]" />
-          <span className="text-zinc-800 dark:text-zinc-200 font-mono">
-            {iface.name}
-          </span>
+          <span className="text-fg-primary font-mono">{iface.name}</span>
         </div>
       </td>
       <td className="px-2 py-1.5">
