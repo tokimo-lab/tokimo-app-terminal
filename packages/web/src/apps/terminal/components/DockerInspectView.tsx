@@ -48,7 +48,7 @@ export default function DockerInspectView({
         <button
           type="button"
           onClick={onBack}
-          className="p-0.5 text-fg-muted hover:text-zinc-700 dark:hover:text-zinc-300 transition-colors"
+          className="p-0.5 text-fg-muted hover:text-fg-secondary transition-colors"
         >
           <ArrowLeft className="h-3 w-3" />
         </button>
@@ -58,7 +58,7 @@ export default function DockerInspectView({
         <button
           type="button"
           onClick={fetchInspect}
-          className="p-0.5 text-fg-muted hover:text-zinc-700 dark:hover:text-zinc-300 transition-colors ml-auto"
+          className="p-0.5 text-fg-muted hover:text-fg-secondary transition-colors ml-auto"
         >
           {loading ? (
             <LoadingOutlined className="h-3 w-3" />

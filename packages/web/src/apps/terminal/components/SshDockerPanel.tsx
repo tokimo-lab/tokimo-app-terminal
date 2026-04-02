@@ -227,7 +227,7 @@ export default function SshDockerPanel({
           <button
             type="button"
             onClick={() => setOverlay(null)}
-            className="p-0.5 text-fg-muted hover:text-zinc-800 dark:hover:text-zinc-300 transition-colors"
+            className="p-0.5 text-fg-muted hover:text-fg-secondary transition-colors"
           >
             <ArrowLeft className="h-3 w-3" />
           </button>
@@ -307,7 +307,7 @@ export default function SshDockerPanel({
           <button
             type="button"
             onClick={refreshCurrent}
-            className="p-0.5 text-fg-muted hover:text-zinc-800 dark:hover:text-zinc-300 transition-colors"
+            className="p-0.5 text-fg-muted hover:text-fg-secondary transition-colors"
             title="刷新"
           >
             {loading ? (
@@ -390,7 +390,7 @@ function TabPill({
       className={`flex items-center gap-1 text-[11px] px-1.5 py-0.5 rounded transition-colors ${
         active
           ? "text-[var(--accent-text)] bg-[var(--accent)]/10"
-          : "text-fg-muted hover:text-zinc-800 dark:hover:text-zinc-300"
+          : "text-fg-muted hover:text-fg-secondary"
       }`}
     >
       {icon}
@@ -436,7 +436,7 @@ function DockerStatsTable({
         {stats.map((s) => (
           <tr
             key={s.containerId}
-            className="text-fg-secondary hover:bg-black/[0.04] dark:hover:bg-zinc-800/50"
+            className="text-fg-secondary hover:bg-black/[0.04]/50"
           >
             <td className="px-2 py-0.5 text-fg-primary truncate max-w-32">
               {s.name}
@@ -444,7 +444,7 @@ function DockerStatsTable({
             <td className="px-2 py-0.5 text-right tabular-nums">
               <CpuBadge value={s.cpuPercent} />
             </td>
-            <td className="px-2 py-0.5 text-right tabular-nums text-fg-muted dark:text-zinc-300">
+            <td className="px-2 py-0.5 text-right tabular-nums text-fg-muted">
               {s.memUsage}
             </td>
             <td className="px-2 py-0.5 text-right tabular-nums">
@@ -476,11 +476,7 @@ function CpuBadge({ value }: { value: string }) {
 function MemBadge({ value }: { value: string }) {
   const n = Number.parseFloat(value);
   const color =
-    n > 80
-      ? "text-red-400"
-      : n > 50
-        ? "text-amber-400"
-        : "text-fg-muted dark:text-zinc-300";
+    n > 80 ? "text-red-400" : n > 50 ? "text-amber-400" : "text-fg-muted";
   return <span className={color}>{value}</span>;
 }
 

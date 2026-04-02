@@ -138,7 +138,7 @@ export default function SshProcessList({
         <button
           type="button"
           onClick={fetchProcesses}
-          className="p-0.5 text-fg-muted hover:text-zinc-800 dark:hover:text-zinc-300 transition-colors"
+          className="p-0.5 text-fg-muted hover:text-fg-secondary transition-colors"
           title="刷新进程列表"
         >
           <RefreshCw className={`h-3 w-3 ${loading ? "animate-spin" : ""}`} />
@@ -181,7 +181,7 @@ export default function SshProcessList({
               sorted.map((proc) => (
                 <tr
                   key={proc.pid}
-                  className="text-fg-secondary hover:bg-black/[0.04] dark:hover:bg-zinc-800/50 cursor-default"
+                  className="text-fg-secondary hover:bg-black/[0.04]/50 cursor-default"
                   onContextMenu={(e) => handleContextMenu(e, proc)}
                 >
                   <td className="px-2 py-0.5 text-fg-muted">{proc.pid}</td>
@@ -196,7 +196,7 @@ export default function SshProcessList({
                   >
                     {proc.mem.toFixed(1)}
                   </td>
-                  <td className="px-2 py-0.5 text-right tabular-nums text-fg-muted dark:text-zinc-300">
+                  <td className="px-2 py-0.5 text-right tabular-nums text-fg-muted">
                     {formatBytes(proc.rssKb * 1024)}
                   </td>
                   <td className="px-2 py-0.5 max-w-60 truncate">
@@ -225,7 +225,7 @@ function SortTh({
 }) {
   return (
     <th
-      className={`px-2 py-1 font-normal cursor-pointer text-fg-secondary hover:text-zinc-950 dark:hover:text-zinc-100 transition-colors whitespace-nowrap select-none ${align === "right" ? "text-right" : "text-left"}`}
+      className={`px-2 py-1 font-normal cursor-pointer text-fg-secondary hover:text-fg-primary transition-colors whitespace-nowrap select-none ${align === "right" ? "text-right" : "text-left"}`}
       onClick={onClick}
     >
       {children}

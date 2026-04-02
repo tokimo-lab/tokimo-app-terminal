@@ -48,7 +48,7 @@ export default function SshStoragePanel({
         <button
           type="button"
           onClick={fetchDisks}
-          className="p-0.5 text-fg-muted hover:text-zinc-800 dark:hover:text-zinc-300 transition-colors"
+          className="p-0.5 text-fg-muted hover:text-fg-secondary transition-colors"
           title="刷新存储信息"
         >
           {loading ? (
@@ -127,7 +127,7 @@ function UsageBar({ percent }: { percent: number }) {
 
 function DiskRow({ disk }: { disk: SshDiskEntry }) {
   return (
-    <tr className="border-b border-black/[0.05] dark:border-zinc-800/30 hover:bg-black/[0.04] dark:hover:bg-zinc-800/30 transition-colors">
+    <tr className="border-b border-black/[0.05] dark:border-zinc-800/30 hover:bg-black/[0.04]/30 transition-colors">
       <td className="px-3 py-1.5">
         <div className="flex items-center gap-1.5">
           <HardDrive className="h-3 w-3 shrink-0 text-[var(--accent-text)]" />

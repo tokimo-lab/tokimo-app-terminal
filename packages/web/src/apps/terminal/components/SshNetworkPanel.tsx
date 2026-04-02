@@ -85,7 +85,7 @@ export default function SshNetworkPanel({
         <button
           type="button"
           onClick={fetchNetwork}
-          className="p-0.5 text-fg-muted hover:text-zinc-800 dark:hover:text-zinc-300 transition-colors"
+          className="p-0.5 text-fg-muted hover:text-fg-secondary transition-colors"
           title="刷新网络信息"
         >
           {loading ? (
@@ -130,7 +130,7 @@ function SubTabButton({
       className={`text-[10px] px-1.5 py-0.5 rounded transition-colors ${
         active
           ? "text-fg-primary bg-black/[0.08] dark:bg-zinc-700/60"
-          : "text-fg-muted hover:text-zinc-800 dark:hover:text-zinc-400"
+          : "text-fg-muted hover:text-fg-secondary"
       }`}
     >
       {label}
@@ -171,7 +171,7 @@ function InterfaceTable({
 
 function InterfaceRow({ iface }: { iface: SshNetworkInterfaceEntry }) {
   return (
-    <tr className="border-b border-black/[0.05] dark:border-zinc-800/30 hover:bg-black/[0.04] dark:hover:bg-zinc-800/30 transition-colors">
+    <tr className="border-b border-black/[0.05] dark:border-zinc-800/30 hover:bg-black/[0.04]/30 transition-colors">
       <td className="px-3 py-1.5">
         <div className="flex items-center gap-1.5">
           <Network className="h-3 w-3 shrink-0 text-[var(--accent-text)]" />
@@ -208,7 +208,7 @@ function InterfaceRow({ iface }: { iface: SshNetworkInterfaceEntry }) {
           )}
         </div>
       </td>
-      <td className="px-2 py-1.5 text-fg-muted dark:text-zinc-300 font-mono text-[10px]">
+      <td className="px-2 py-1.5 text-fg-muted font-mono text-[10px]">
         {iface.macAddress || "—"}
       </td>
       <td className="px-2 py-1.5 text-right text-fg-secondary tabular-nums">
@@ -242,7 +242,7 @@ function ListeningTable({ sockets }: { sockets: SshListeningSocketEntry[] }) {
         {sockets.map((s) => (
           <tr
             key={`${s.protocol}-${s.localAddress}-${s.process}`}
-            className="border-b border-black/[0.05] dark:border-zinc-800/30 hover:bg-black/[0.04] dark:hover:bg-zinc-800/30 transition-colors"
+            className="border-b border-black/[0.05] dark:border-zinc-800/30 hover:bg-black/[0.04]/30 transition-colors"
           >
             <td className="px-3 py-1.5">
               <ProtocolBadge protocol={s.protocol} />
@@ -282,7 +282,7 @@ function ConnectionTable({
         {connections.map((c) => (
           <tr
             key={`${c.protocol}-${c.localAddress}-${c.peerAddress}-${c.process}`}
-            className="border-b border-black/[0.05] dark:border-zinc-800/30 hover:bg-black/[0.04] dark:hover:bg-zinc-800/30 transition-colors"
+            className="border-b border-black/[0.05] dark:border-zinc-800/30 hover:bg-black/[0.04]/30 transition-colors"
           >
             <td className="px-3 py-1.5">
               <ProtocolBadge protocol={c.protocol} />
@@ -325,7 +325,7 @@ function RouteTable({ routes }: { routes: SshRouteEntry[] }) {
         {routes.map((r) => (
           <tr
             key={`${r.destination}-${r.iface}-${r.gateway}`}
-            className="border-b border-black/[0.05] dark:border-zinc-800/30 hover:bg-black/[0.04] dark:hover:bg-zinc-800/30 transition-colors"
+            className="border-b border-black/[0.05] dark:border-zinc-800/30 hover:bg-black/[0.04]/30 transition-colors"
           >
             <td className="px-3 py-1.5">
               <span
@@ -341,7 +341,7 @@ function RouteTable({ routes }: { routes: SshRouteEntry[] }) {
             <td className="px-2 py-1.5 text-fg-secondary font-mono text-[10px]">
               {r.gateway || "—"}
             </td>
-            <td className="px-2 py-1.5 text-fg-muted dark:text-zinc-300 font-mono text-[10px]">
+            <td className="px-2 py-1.5 text-fg-muted font-mono text-[10px]">
               {r.iface || "—"}
             </td>
             <td className="px-2 py-1.5 text-fg-muted text-[10px]">

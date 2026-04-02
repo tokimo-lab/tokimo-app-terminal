@@ -788,7 +788,7 @@ export default function SshFileTree({
                   >
                     {item.filename}
                   </span>
-                  <span className="shrink-0 text-fg-muted/70 dark:text-zinc-500">
+                  <span className="shrink-0 text-fg-muted/70">
                     {item.status === "uploading"
                       ? `${formatBytes(item.loaded)} / ${formatBytes(item.size)}`
                       : formatBytes(item.size)}

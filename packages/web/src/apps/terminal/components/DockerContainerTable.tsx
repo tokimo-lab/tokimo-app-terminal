@@ -294,7 +294,7 @@ function Btn({
         e.stopPropagation();
         onClick();
       }}
-      className={`p-0.5 text-fg-muted hover:text-zinc-800 dark:hover:text-zinc-200 transition-colors ${className}`}
+      className={`p-0.5 text-fg-muted hover:text-fg-primary transition-colors ${className}`}
     >
       {children}
     </button>

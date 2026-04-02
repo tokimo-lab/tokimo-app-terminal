@@ -617,7 +617,7 @@ export default function SshTerminalWindow({
             type="button"
             onClick={handleDuplicate}
             title="复制会话"
-            className="flex items-center justify-center h-5 w-5 rounded text-fg-muted hover:text-zinc-800 dark:hover:text-zinc-200 hover:bg-black/[0.08] dark:hover:bg-zinc-700/60 transition-colors"
+            className="flex items-center justify-center h-5 w-5 rounded text-fg-muted hover:text-fg-primary hover:bg-black/[0.08]/60 transition-colors"
           >
             <CopyPlus className="h-3.5 w-3.5" />
           </button>
@@ -767,7 +767,7 @@ function TabButton({
       className={`relative flex items-center gap-1 px-3 py-1 text-xs transition-colors cursor-pointer ${
         active && !collapsed
           ? "text-[var(--accent-text)] border-b-2 border-[var(--accent)] -mb-px"
-          : "text-fg-muted hover:text-zinc-800 dark:hover:text-zinc-300"
+          : "text-fg-muted hover:text-fg-secondary"
       }`}
     >
       {icon}
