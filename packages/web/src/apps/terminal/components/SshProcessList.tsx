@@ -1,6 +1,6 @@
 /**
  * Remote process list panel for SSH terminal.
- * Lists processes via /api/ssh-terminals/{id}/ps endpoint.
+ * Lists processes via /api/apps/terminal/connections/{id}/ps endpoint.
  * Right-click context menu to kill processes.
  */
 import { useContextMenu } from "@tokiomo/components";

@@ -14,7 +14,7 @@ import { useEffect, useRef, useState } from "react";
 const SESSION_STORAGE_KEY = "tokimo-terminal-session-id";
 
 interface WebTerminalProps {
-  /** WebSocket URL for the PTY endpoint, e.g. ws://localhost:5678/api/terminal/ws */
+  /** WebSocket URL for the PTY endpoint, e.g. ws://localhost:5678/api/apps/terminal/local-ws */
   wsUrl: string;
   /** CSS height. Default: 100% */
   height?: string;

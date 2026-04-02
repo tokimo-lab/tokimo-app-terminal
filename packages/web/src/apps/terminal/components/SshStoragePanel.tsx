@@ -1,6 +1,6 @@
 /**
  * Remote storage/disk usage panel for SSH terminal.
- * Fetches disk info via /api/ssh-terminals/{id}/df endpoint.
+ * Fetches disk info via /api/apps/terminal/connections/{id}/df endpoint.
  * Displays each mount point with a graphical usage bar.
  */
 import { LoadingOutlined } from "@tokiomo/components";

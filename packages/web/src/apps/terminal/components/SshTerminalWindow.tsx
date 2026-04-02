@@ -56,7 +56,7 @@ type ConnectionStatus = "connecting" | "connected" | "disconnected" | "error";
 type BottomTab = "files" | "processes" | "storage" | "network" | "docker";
 
 function getSshWsUrl(terminalId: string, sessionId: string): string {
-  return `${devWsBase()}/api/ssh-terminals/ws?id=${encodeURIComponent(terminalId)}&session_id=${encodeURIComponent(sessionId)}`;
+  return `${devWsBase()}/api/apps/terminal/connections/ws?id=${encodeURIComponent(terminalId)}&session_id=${encodeURIComponent(sessionId)}`;
 }
 
 export default function SshTerminalWindow({

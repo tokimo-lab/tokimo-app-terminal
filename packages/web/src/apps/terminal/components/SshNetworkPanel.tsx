@@ -1,6 +1,6 @@
 /**
  * Remote network visualization panel for SSH terminal.
- * Fetches network info via /api/ssh-terminals/{id}/net endpoint.
+ * Fetches network info via /api/apps/terminal/connections/{id}/net endpoint.
  * Displays interfaces, listening sockets, and active connections.
  */
 import { LoadingOutlined } from "@tokiomo/components";
