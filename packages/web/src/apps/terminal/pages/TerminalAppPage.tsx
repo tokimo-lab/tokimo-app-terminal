@@ -8,6 +8,8 @@
  */
 
 import {
+  AppSidebar,
+  type AppSidebarItem,
   type ContextMenuItem,
   Modal,
   Spin,
@@ -186,45 +188,45 @@ export default function TerminalAppPage() {
 
   const activatedTerminals = useMemo(() => [...sessions.entries()], [sessions]);
 
+  const sidebarItems: AppSidebarItem[] = useMemo(
+    () =>
+      terminals.map((t) => ({
+        key: t.id,
+        icon: <Monitor className="h-3.5 w-3.5 text-violet-500" />,
+        label: t.name,
+        subtitle: `${t.username}@${t.host}:${t.port}`,
+        onContextMenu: (e: React.MouseEvent) => handleContextMenu(e, t),
+      })),
+    [terminals, handleContextMenu],
+  );
+
   return (
     <div className="flex h-full">
       {/* ── Left Sidebar ── */}
-      <div className="w-56 flex-shrink-0 border-r border-border-base flex flex-col overflow-hidden bg-[var(--sidebar-bg)]">
-        {terminalsQuery.isLoading ? (
-          <div className="flex-1 flex items-center justify-center">
-            <Spin />
-          </div>
-        ) : (
-          <div className="flex-1 overflow-y-auto select-none py-1">
-            {terminals.map((t) => (
-              <SidebarItem
-                key={t.id}
-                label={t.name}
-                subtitle={`${t.username}@${t.host}:${t.port}`}
-                active={
-                  (selection.kind === "terminal" &&
-                    selection.terminalId === t.id) ||
-                  (selection.kind === "edit" && selection.terminalId === t.id)
-                }
-                onClick={() => handleSelect(t)}
-                onContextMenu={(e) => handleContextMenu(e, t)}
-              />
-            ))}
-          </div>
-        )}
-
-        {/* Bottom add button */}
-        <div className="border-t border-border-base p-2">
+      <AppSidebar
+        width={224}
+        sections={[{ items: sidebarItems }]}
+        activeKey={
+          selection.kind === "terminal" || selection.kind === "edit"
+            ? selection.terminalId
+            : undefined
+        }
+        onSelect={(key) => {
+          const t = terminals.find((x) => x.id === key);
+          if (t) handleSelect(t);
+        }}
+        loading={terminalsQuery.isLoading}
+        footer={
           <button
             type="button"
-            className="w-full flex items-center justify-center gap-1.5 rounded-md px-2 py-1.5 text-xs font-medium text-[var(--text-tertiary)] hover:text-[var(--accent)] hover:bg-[var(--accent-subtle)] transition-colors cursor-pointer"
+            className="flex w-full cursor-pointer items-center justify-center gap-1.5 rounded-md px-2 py-1.5 text-xs font-medium text-[var(--text-tertiary)] transition-colors hover:bg-[var(--accent-subtle)] hover:text-[var(--accent)]"
             onClick={() => navigate("/new")}
           >
             <Plus className="h-3.5 w-3.5" />
             新建终端
           </button>
-        </div>
-      </div>
+        }
+      />
 
       {/* ── Right Content ── */}
       <div className="flex-1 min-w-0 relative">
@@ -301,41 +303,6 @@ export default function TerminalAppPage() {
 }
 
 // ── Sub-components ──
-
-function SidebarItem({
-  label,
-  subtitle,
-  active,
-  onClick,
-  onContextMenu,
-}: {
-  label: string;
-  subtitle: string;
-  active: boolean;
-  onClick: () => void;
-  onContextMenu: (e: React.MouseEvent) => void;
-}) {
-  return (
-    <button
-      type="button"
-      className={`w-full flex items-center gap-2 px-3 py-1.5 text-left transition-colors cursor-pointer group/item ${
-        active
-          ? "bg-[var(--accent-subtle)] text-[var(--accent)]"
-          : "text-[var(--text-secondary)] hover:bg-[var(--bg-glass-hover)]"
-      }`}
-      onClick={onClick}
-      onContextMenu={onContextMenu}
-    >
-      <Monitor className="h-3.5 w-3.5 shrink-0 text-violet-500" />
-      <div className="flex-1 min-w-0">
-        <div className="text-xs font-medium truncate">{label}</div>
-        <p className="text-[10px] text-[var(--text-quaternary)] truncate">
-          {subtitle}
-        </p>
-      </div>
-    </button>
-  );
-}
 
 function FormPanel({
   title,
