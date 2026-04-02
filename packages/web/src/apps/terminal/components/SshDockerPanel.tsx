@@ -212,7 +212,7 @@ export default function SshDockerPanel({
   // ── Docker not available ──
   if (available === false) {
     return (
-      <div className="flex items-center justify-center h-full text-xs text-zinc-500 dark:text-zinc-500 gap-2">
+      <div className="flex items-center justify-center h-full text-xs text-fg-muted gap-2">
         <Container className="h-4 w-4" />
         远程主机未安装 Docker
       </div>
@@ -227,12 +227,12 @@ export default function SshDockerPanel({
           <button
             type="button"
             onClick={() => setOverlay(null)}
-            className="p-0.5 text-zinc-500 dark:text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300 transition-colors"
+            className="p-0.5 text-fg-muted hover:text-zinc-800 dark:hover:text-zinc-300 transition-colors"
           >
             <ArrowLeft className="h-3 w-3" />
           </button>
-          <ScrollText className="h-3 w-3 text-zinc-500 dark:text-zinc-500" />
-          <span className="text-xs text-zinc-700 dark:text-zinc-300 truncate">
+          <ScrollText className="h-3 w-3 text-fg-muted" />
+          <span className="text-xs text-fg-secondary truncate">
             {overlay.name} 日志
           </span>
         </div>
@@ -298,7 +298,7 @@ export default function SshDockerPanel({
           <button
             type="button"
             onClick={handleSystemPrune}
-            className="flex items-center gap-0.5 text-[10px] text-zinc-500 hover:text-amber-400 transition-colors px-1"
+            className="flex items-center gap-0.5 text-[10px] text-fg-muted hover:text-amber-400 transition-colors px-1"
             title="系统清理 (docker system prune)"
           >
             <Eraser className="h-2.5 w-2.5" />
@@ -307,7 +307,7 @@ export default function SshDockerPanel({
           <button
             type="button"
             onClick={refreshCurrent}
-            className="p-0.5 text-zinc-500 dark:text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300 transition-colors"
+            className="p-0.5 text-fg-muted hover:text-zinc-800 dark:hover:text-zinc-300 transition-colors"
             title="刷新"
           >
             {loading ? (
@@ -390,15 +390,13 @@ function TabPill({
       className={`flex items-center gap-1 text-[11px] px-1.5 py-0.5 rounded transition-colors ${
         active
           ? "text-[var(--accent-text)] bg-[var(--accent)]/10"
-          : "text-zinc-500 dark:text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300"
+          : "text-fg-muted hover:text-zinc-800 dark:hover:text-zinc-300"
       }`}
     >
       {icon}
       {label}
       {count > 0 && (
-        <span className="text-[9px] text-zinc-500 dark:text-zinc-500 ml-0.5">
-          {count}
-        </span>
+        <span className="text-[9px] text-fg-muted ml-0.5">{count}</span>
       )}
     </button>
   );
@@ -413,24 +411,18 @@ function DockerStatsTable({
   loading: boolean;
 }) {
   if (loading && stats.length === 0) {
-    return (
-      <div className="text-zinc-500 dark:text-zinc-500 text-xs px-3 py-2">
-        加载中...
-      </div>
-    );
+    return <div className="text-fg-muted text-xs px-3 py-2">加载中...</div>;
   }
   if (stats.length === 0) {
     return (
-      <div className="text-zinc-500 dark:text-zinc-500 text-xs px-3 py-2">
-        无运行中的容器
-      </div>
+      <div className="text-fg-muted text-xs px-3 py-2">无运行中的容器</div>
     );
   }
 
   return (
     <table className="w-full border-collapse text-xs font-mono">
       <thead className="sticky top-0 bg-white dark:bg-zinc-900 z-10">
-        <tr className="text-zinc-700 dark:text-zinc-300">
+        <tr className="text-fg-secondary">
           <th className="px-2 py-1 text-left font-normal">CONTAINER</th>
           <th className="px-2 py-1 text-right font-normal">CPU %</th>
           <th className="px-2 py-1 text-right font-normal">MEM USAGE</th>
@@ -444,7 +436,7 @@ function DockerStatsTable({
         {stats.map((s) => (
           <tr
             key={s.containerId}
-            className="text-zinc-700 dark:text-zinc-300 hover:bg-black/[0.04] dark:hover:bg-zinc-800/50"
+            className="text-fg-secondary hover:bg-black/[0.04] dark:hover:bg-zinc-800/50"
           >
             <td className="px-2 py-0.5 text-zinc-800 dark:text-zinc-200 truncate max-w-32">
               {s.name}
@@ -452,19 +444,19 @@ function DockerStatsTable({
             <td className="px-2 py-0.5 text-right tabular-nums">
               <CpuBadge value={s.cpuPercent} />
             </td>
-            <td className="px-2 py-0.5 text-right tabular-nums text-zinc-600 dark:text-zinc-300">
+            <td className="px-2 py-0.5 text-right tabular-nums text-fg-muted dark:text-zinc-300">
               {s.memUsage}
             </td>
             <td className="px-2 py-0.5 text-right tabular-nums">
               <MemBadge value={s.memPercent} />
             </td>
-            <td className="px-2 py-0.5 text-right tabular-nums text-zinc-500 dark:text-zinc-400 text-[10px]">
+            <td className="px-2 py-0.5 text-right tabular-nums text-fg-muted text-[10px]">
               {s.netIo}
             </td>
-            <td className="px-2 py-0.5 text-right tabular-nums text-zinc-500 dark:text-zinc-400 text-[10px]">
+            <td className="px-2 py-0.5 text-right tabular-nums text-fg-muted text-[10px]">
               {s.blockIo}
             </td>
-            <td className="px-2 py-0.5 text-right tabular-nums text-zinc-500 dark:text-zinc-500">
+            <td className="px-2 py-0.5 text-right tabular-nums text-fg-muted">
               {s.pids}
             </td>
           </tr>
@@ -488,7 +480,7 @@ function MemBadge({ value }: { value: string }) {
       ? "text-red-400"
       : n > 50
         ? "text-amber-400"
-        : "text-zinc-600 dark:text-zinc-300";
+        : "text-fg-muted dark:text-zinc-300";
   return <span className={color}>{value}</span>;
 }
 

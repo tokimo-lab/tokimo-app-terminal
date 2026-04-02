@@ -85,7 +85,7 @@ export default function SshNetworkPanel({
         <button
           type="button"
           onClick={fetchNetwork}
-          className="p-0.5 text-zinc-500 dark:text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300 transition-colors"
+          className="p-0.5 text-fg-muted hover:text-zinc-800 dark:hover:text-zinc-300 transition-colors"
           title="刷新网络信息"
         >
           {loading ? (
@@ -99,9 +99,7 @@ export default function SshNetworkPanel({
       {/* Content */}
       <div className="flex-1 overflow-y-auto">
         {loading && interfaces.length === 0 ? (
-          <div className="text-zinc-500 dark:text-zinc-500 text-xs px-3 py-2">
-            加载中...
-          </div>
+          <div className="text-fg-muted text-xs px-3 py-2">加载中...</div>
         ) : subTab === "interfaces" ? (
           <InterfaceTable interfaces={interfaces} />
         ) : subTab === "listening" ? (
@@ -132,7 +130,7 @@ function SubTabButton({
       className={`text-[10px] px-1.5 py-0.5 rounded transition-colors ${
         active
           ? "text-zinc-800 dark:text-zinc-200 bg-black/[0.08] dark:bg-zinc-700/60"
-          : "text-zinc-500 dark:text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-400"
+          : "text-fg-muted hover:text-zinc-800 dark:hover:text-zinc-400"
       }`}
     >
       {label}
@@ -146,17 +144,13 @@ function InterfaceTable({
   interfaces: SshNetworkInterfaceEntry[];
 }) {
   if (interfaces.length === 0) {
-    return (
-      <div className="text-zinc-500 dark:text-zinc-500 text-xs px-3 py-2">
-        无网络接口
-      </div>
-    );
+    return <div className="text-fg-muted text-xs px-3 py-2">无网络接口</div>;
   }
 
   return (
     <table className="w-full text-xs">
       <thead>
-        <tr className="text-[10px] text-zinc-600 dark:text-zinc-400 border-b border-black/[0.08] dark:border-zinc-800/60">
+        <tr className="text-[10px] text-fg-muted border-b border-black/[0.08] dark:border-zinc-800/60">
           <th className="text-left font-normal px-3 py-1">接口</th>
           <th className="text-left font-normal px-2 py-1">状态</th>
           <th className="text-left font-normal px-2 py-1">IP 地址</th>
@@ -189,7 +183,7 @@ function InterfaceRow({ iface }: { iface: SshNetworkInterfaceEntry }) {
       <td className="px-2 py-1.5">
         <span
           className={`inline-flex items-center gap-1 text-[10px] ${
-            iface.isUp ? "text-emerald-400" : "text-zinc-500 dark:text-zinc-500"
+            iface.isUp ? "text-emerald-400" : "text-fg-muted"
           }`}
         >
           <span
@@ -206,26 +200,26 @@ function InterfaceRow({ iface }: { iface: SshNetworkInterfaceEntry }) {
             iface.ipAddresses.map((ip) => (
               <span
                 key={ip}
-                className="text-zinc-700 dark:text-zinc-300 font-mono text-[10px]"
+                className="text-fg-secondary font-mono text-[10px]"
               >
                 {ip}
               </span>
             ))
           ) : (
-            <span className="text-zinc-500 dark:text-zinc-500">—</span>
+            <span className="text-fg-muted">—</span>
           )}
         </div>
       </td>
-      <td className="px-2 py-1.5 text-zinc-600 dark:text-zinc-300 font-mono text-[10px]">
+      <td className="px-2 py-1.5 text-fg-muted dark:text-zinc-300 font-mono text-[10px]">
         {iface.macAddress || "—"}
       </td>
-      <td className="px-2 py-1.5 text-right text-zinc-700 dark:text-zinc-300 tabular-nums">
+      <td className="px-2 py-1.5 text-right text-fg-secondary tabular-nums">
         {iface.mtu ?? "—"}
       </td>
-      <td className="px-2 py-1.5 text-right text-zinc-700 dark:text-zinc-300 tabular-nums">
+      <td className="px-2 py-1.5 text-right text-fg-secondary tabular-nums">
         {formatBytes(iface.rxBytes)}
       </td>
-      <td className="px-2 py-1.5 text-right text-zinc-700 dark:text-zinc-300 tabular-nums">
+      <td className="px-2 py-1.5 text-right text-fg-secondary tabular-nums">
         {formatBytes(iface.txBytes)}
       </td>
     </tr>
@@ -234,17 +228,13 @@ function InterfaceRow({ iface }: { iface: SshNetworkInterfaceEntry }) {
 
 function ListeningTable({ sockets }: { sockets: SshListeningSocketEntry[] }) {
   if (sockets.length === 0) {
-    return (
-      <div className="text-zinc-500 dark:text-zinc-500 text-xs px-3 py-2">
-        无监听端口
-      </div>
-    );
+    return <div className="text-fg-muted text-xs px-3 py-2">无监听端口</div>;
   }
 
   return (
     <table className="w-full text-xs">
       <thead>
-        <tr className="text-[10px] text-zinc-600 dark:text-zinc-400 border-b border-black/[0.08] dark:border-zinc-800/60">
+        <tr className="text-[10px] text-fg-muted border-b border-black/[0.08] dark:border-zinc-800/60">
           <th className="text-left font-normal px-3 py-1">协议</th>
           <th className="text-left font-normal px-2 py-1">本地地址</th>
           <th className="text-left font-normal px-2 py-1">进程</th>
@@ -259,12 +249,10 @@ function ListeningTable({ sockets }: { sockets: SshListeningSocketEntry[] }) {
             <td className="px-3 py-1.5">
               <ProtocolBadge protocol={s.protocol} />
             </td>
-            <td className="px-2 py-1.5 text-zinc-700 dark:text-zinc-300 font-mono text-[10px]">
+            <td className="px-2 py-1.5 text-fg-secondary font-mono text-[10px]">
               {s.localAddress}
             </td>
-            <td className="px-2 py-1.5 text-zinc-500 dark:text-zinc-400">
-              {s.process || "—"}
-            </td>
+            <td className="px-2 py-1.5 text-fg-muted">{s.process || "—"}</td>
           </tr>
         ))}
       </tbody>
@@ -278,17 +266,13 @@ function ConnectionTable({
   connections: SshConnectionEntry[];
 }) {
   if (connections.length === 0) {
-    return (
-      <div className="text-zinc-500 dark:text-zinc-500 text-xs px-3 py-2">
-        无活跃连接
-      </div>
-    );
+    return <div className="text-fg-muted text-xs px-3 py-2">无活跃连接</div>;
   }
 
   return (
     <table className="w-full text-xs">
       <thead>
-        <tr className="text-[10px] text-zinc-600 dark:text-zinc-400 border-b border-black/[0.08] dark:border-zinc-800/60">
+        <tr className="text-[10px] text-fg-muted border-b border-black/[0.08] dark:border-zinc-800/60">
           <th className="text-left font-normal px-3 py-1">协议</th>
           <th className="text-left font-normal px-2 py-1">本地地址</th>
           <th className="text-left font-normal px-2 py-1">远程地址</th>
@@ -305,18 +289,16 @@ function ConnectionTable({
             <td className="px-3 py-1.5">
               <ProtocolBadge protocol={c.protocol} />
             </td>
-            <td className="px-2 py-1.5 text-zinc-700 dark:text-zinc-300 font-mono text-[10px]">
+            <td className="px-2 py-1.5 text-fg-secondary font-mono text-[10px]">
               {c.localAddress}
             </td>
-            <td className="px-2 py-1.5 text-zinc-700 dark:text-zinc-300 font-mono text-[10px]">
+            <td className="px-2 py-1.5 text-fg-secondary font-mono text-[10px]">
               {c.peerAddress}
             </td>
             <td className="px-2 py-1.5">
               <StateBadge state={c.state} />
             </td>
-            <td className="px-2 py-1.5 text-zinc-500 dark:text-zinc-400">
-              {c.process || "—"}
-            </td>
+            <td className="px-2 py-1.5 text-fg-muted">{c.process || "—"}</td>
           </tr>
         ))}
       </tbody>
@@ -326,17 +308,13 @@ function ConnectionTable({
 
 function RouteTable({ routes }: { routes: SshRouteEntry[] }) {
   if (routes.length === 0) {
-    return (
-      <div className="text-zinc-500 dark:text-zinc-500 text-xs px-3 py-2">
-        无路由信息
-      </div>
-    );
+    return <div className="text-fg-muted text-xs px-3 py-2">无路由信息</div>;
   }
 
   return (
     <table className="w-full text-xs">
       <thead>
-        <tr className="text-[10px] text-zinc-600 dark:text-zinc-400 border-b border-black/[0.08] dark:border-zinc-800/60">
+        <tr className="text-[10px] text-fg-muted border-b border-black/[0.08] dark:border-zinc-800/60">
           <th className="text-left font-normal px-3 py-1">目标</th>
           <th className="text-left font-normal px-2 py-1">网关</th>
           <th className="text-left font-normal px-2 py-1">接口</th>
@@ -356,25 +334,25 @@ function RouteTable({ routes }: { routes: SshRouteEntry[] }) {
                 className={`font-mono text-[10px] ${
                   r.destination === "default"
                     ? "text-emerald-400"
-                    : "text-zinc-700 dark:text-zinc-300"
+                    : "text-fg-secondary"
                 }`}
               >
                 {r.destination}
               </span>
             </td>
-            <td className="px-2 py-1.5 text-zinc-700 dark:text-zinc-300 font-mono text-[10px]">
+            <td className="px-2 py-1.5 text-fg-secondary font-mono text-[10px]">
               {r.gateway || "—"}
             </td>
-            <td className="px-2 py-1.5 text-zinc-600 dark:text-zinc-300 font-mono text-[10px]">
+            <td className="px-2 py-1.5 text-fg-muted dark:text-zinc-300 font-mono text-[10px]">
               {r.iface || "—"}
             </td>
-            <td className="px-2 py-1.5 text-zinc-500 dark:text-zinc-400 text-[10px]">
+            <td className="px-2 py-1.5 text-fg-muted text-[10px]">
               {r.protocol || "—"}
             </td>
-            <td className="px-2 py-1.5 text-zinc-500 dark:text-zinc-400 text-[10px]">
+            <td className="px-2 py-1.5 text-fg-muted text-[10px]">
               {r.scope || "—"}
             </td>
-            <td className="px-2 py-1.5 text-right text-zinc-700 dark:text-zinc-300 tabular-nums">
+            <td className="px-2 py-1.5 text-right text-fg-secondary tabular-nums">
               {r.metric || "—"}
             </td>
           </tr>
@@ -407,7 +385,7 @@ function StateBadge({ state }: { state: string }) {
         ? "text-amber-400"
         : state === "CLOSE-WAIT"
           ? "text-red-400"
-          : "text-zinc-500 dark:text-zinc-400";
+          : "text-fg-muted";
 
   return <span className={`text-[10px] font-mono ${color}`}>{state}</span>;
 }

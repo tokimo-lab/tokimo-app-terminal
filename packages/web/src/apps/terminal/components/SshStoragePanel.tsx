@@ -44,13 +44,11 @@ export default function SshStoragePanel({
     <div className="flex flex-col h-full overflow-hidden">
       {/* Header */}
       <div className="flex items-center justify-between px-3 py-1 border-b border-black/[0.08] dark:border-zinc-800/60 shrink-0">
-        <span className="text-xs text-zinc-500 dark:text-zinc-400">
-          {disks.length} 个磁盘分区
-        </span>
+        <span className="text-xs text-fg-muted">{disks.length} 个磁盘分区</span>
         <button
           type="button"
           onClick={fetchDisks}
-          className="p-0.5 text-zinc-500 dark:text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300 transition-colors"
+          className="p-0.5 text-fg-muted hover:text-zinc-800 dark:hover:text-zinc-300 transition-colors"
           title="刷新存储信息"
         >
           {loading ? (
@@ -64,17 +62,13 @@ export default function SshStoragePanel({
       {/* Disk table */}
       <div className="flex-1 overflow-y-auto">
         {loading && disks.length === 0 ? (
-          <div className="text-zinc-500 dark:text-zinc-500 text-xs px-3 py-2">
-            加载中...
-          </div>
+          <div className="text-fg-muted text-xs px-3 py-2">加载中...</div>
         ) : disks.length === 0 ? (
-          <div className="text-zinc-500 dark:text-zinc-500 text-xs px-3 py-2">
-            无磁盘信息
-          </div>
+          <div className="text-fg-muted text-xs px-3 py-2">无磁盘信息</div>
         ) : (
           <table className="w-full text-xs">
             <thead>
-              <tr className="text-[10px] text-zinc-600 dark:text-zinc-400 border-b border-black/[0.08] dark:border-zinc-800/60">
+              <tr className="text-[10px] text-fg-muted border-b border-black/[0.08] dark:border-zinc-800/60">
                 <th className="text-left font-normal px-3 py-1">挂载点</th>
                 <th className="text-left font-normal px-2 py-1">文件系统</th>
                 <th className="text-right font-normal px-2 py-1">总量</th>
@@ -142,16 +136,16 @@ function DiskRow({ disk }: { disk: SshDiskEntry }) {
           </span>
         </div>
       </td>
-      <td className="px-2 py-1.5 text-zinc-500 dark:text-zinc-400 truncate max-w-24">
+      <td className="px-2 py-1.5 text-fg-muted truncate max-w-24">
         {disk.filesystem}
       </td>
-      <td className="px-2 py-1.5 text-right text-zinc-700 dark:text-zinc-300 tabular-nums">
+      <td className="px-2 py-1.5 text-right text-fg-secondary tabular-nums">
         {formatBytes(disk.totalBytes)}
       </td>
-      <td className="px-2 py-1.5 text-right text-zinc-700 dark:text-zinc-300 tabular-nums">
+      <td className="px-2 py-1.5 text-right text-fg-secondary tabular-nums">
         {formatBytes(disk.usedBytes)}
       </td>
-      <td className="px-2 py-1.5 text-right text-zinc-700 dark:text-zinc-300 tabular-nums">
+      <td className="px-2 py-1.5 text-right text-fg-secondary tabular-nums">
         {formatBytes(disk.availableBytes)}
       </td>
       <td className="px-2 py-1.5 w-20">

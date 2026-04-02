@@ -70,10 +70,10 @@ export default function DockerImageTable({
   );
 
   if (loading && images.length === 0) {
-    return <div className="text-zinc-600 text-xs px-3 py-2">加载中...</div>;
+    return <div className="text-fg-muted text-xs px-3 py-2">加载中...</div>;
   }
   if (images.length === 0) {
-    return <div className="text-zinc-600 text-xs px-3 py-2">无镜像</div>;
+    return <div className="text-fg-muted text-xs px-3 py-2">无镜像</div>;
   }
 
   return (
@@ -87,7 +87,7 @@ export default function DockerImageTable({
         <button
           type="button"
           onClick={handlePrune}
-          className="flex items-center gap-1 text-[10px] text-zinc-500 hover:text-amber-400 transition-colors"
+          className="flex items-center gap-1 text-[10px] text-fg-muted hover:text-amber-400 transition-colors"
           title="清理未使用镜像"
         >
           <Eraser className="h-2.5 w-2.5" />
@@ -96,7 +96,7 @@ export default function DockerImageTable({
       </div>
       <table className="w-full border-collapse text-xs font-mono">
         <thead className="sticky top-0 bg-zinc-900/95 z-10">
-          <tr className="text-zinc-500">
+          <tr className="text-fg-muted">
             <th className="px-2 py-1 text-left font-normal">REPOSITORY</th>
             <th className="px-2 py-1 text-left font-normal">TAG</th>
             <th className="px-2 py-1 text-left font-normal">IMAGE ID</th>
@@ -109,20 +109,20 @@ export default function DockerImageTable({
           {images.map((img) => (
             <tr
               key={`${img.id}-${img.tag}`}
-              className="text-zinc-600 dark:text-zinc-400 hover:bg-zinc-800/50 cursor-default"
+              className="text-fg-muted hover:bg-zinc-800/50 cursor-default"
               onContextMenu={(e) => handleContextMenu(e, img)}
             >
               <td className="px-2 py-0.5 truncate max-w-40">
                 {img.repository}
               </td>
-              <td className="px-2 py-0.5 text-zinc-500">{img.tag}</td>
-              <td className="px-2 py-0.5 text-zinc-600 text-[10px]">
+              <td className="px-2 py-0.5 text-fg-muted">{img.tag}</td>
+              <td className="px-2 py-0.5 text-fg-muted text-[10px]">
                 {img.id.slice(0, 12)}
               </td>
-              <td className="px-2 py-0.5 text-right tabular-nums text-zinc-500">
+              <td className="px-2 py-0.5 text-right tabular-nums text-fg-muted">
                 {img.size}
               </td>
-              <td className="px-2 py-0.5 text-zinc-600">{img.created}</td>
+              <td className="px-2 py-0.5 text-fg-muted">{img.created}</td>
               <td className="px-2 py-0.5 text-right">
                 <button
                   type="button"
@@ -131,7 +131,7 @@ export default function DockerImageTable({
                     e.stopPropagation();
                     handleRemove(img.id);
                   }}
-                  className="p-0.5 text-zinc-600 hover:text-red-400 transition-colors"
+                  className="p-0.5 text-fg-muted hover:text-red-400 transition-colors"
                 >
                   <Trash2 className="h-2.5 w-2.5" />
                 </button>

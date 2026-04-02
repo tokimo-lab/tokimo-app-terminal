@@ -33,11 +33,11 @@ interface DockerContainerTableProps {
 
 const stateIcons: Record<string, React.ReactNode> = {
   running: <CircleCheck className="h-3 w-3 text-green-400" />,
-  exited: <CircleStop className="h-3 w-3 text-zinc-500" />,
+  exited: <CircleStop className="h-3 w-3 text-fg-muted" />,
   paused: <CirclePause className="h-3 w-3 text-amber-400" />,
   restarting: <RotateCw className="h-3 w-3 text-blue-400 animate-spin" />,
   dead: <CircleX className="h-3 w-3 text-red-400" />,
-  created: <Box className="h-3 w-3 text-zinc-500" />,
+  created: <Box className="h-3 w-3 text-fg-muted" />,
 };
 
 export default function DockerContainerTable({
@@ -145,17 +145,17 @@ export default function DockerContainerTable({
   );
 
   if (loading && containers.length === 0) {
-    return <div className="text-zinc-600 text-xs px-3 py-2">加载中...</div>;
+    return <div className="text-fg-muted text-xs px-3 py-2">加载中...</div>;
   }
   if (containers.length === 0) {
-    return <div className="text-zinc-600 text-xs px-3 py-2">无容器</div>;
+    return <div className="text-fg-muted text-xs px-3 py-2">无容器</div>;
   }
 
   return (
     <div className="relative">
       <table className="w-full border-collapse text-xs">
         <thead className="sticky top-0 bg-zinc-900/95 z-10">
-          <tr className="text-zinc-500">
+          <tr className="text-fg-muted">
             <th className="px-2 py-1 text-left font-normal w-6" />
             <th className="px-2 py-1 text-left font-normal">NAME</th>
             <th className="px-2 py-1 text-left font-normal">IMAGE</th>
@@ -175,18 +175,18 @@ export default function DockerContainerTable({
             return (
               <tr
                 key={c.id}
-                className="text-zinc-600 dark:text-zinc-400 hover:bg-zinc-800/50 cursor-default"
+                className="text-fg-muted hover:bg-zinc-800/50 cursor-default"
                 onContextMenu={(e) => handleContextMenu(e, c)}
               >
                 <td className="px-2 py-0.5">
                   {stateIcons[c.state] || (
-                    <Box className="h-3 w-3 text-zinc-600" />
+                    <Box className="h-3 w-3 text-fg-muted" />
                   )}
                 </td>
                 <td className="px-2 py-0.5 text-zinc-200 font-medium truncate max-w-32">
                   {c.name}
                 </td>
-                <td className="px-2 py-0.5 text-zinc-500 truncate max-w-40 font-mono">
+                <td className="px-2 py-0.5 text-fg-muted truncate max-w-40 font-mono">
                   {c.image}
                 </td>
                 <td className="px-2 py-0.5">
@@ -196,13 +196,13 @@ export default function DockerContainerTable({
                         ? "text-green-400"
                         : isPaused
                           ? "text-amber-400"
-                          : "text-zinc-500"
+                          : "text-fg-muted"
                     }
                   >
                     {c.status}
                   </span>
                 </td>
-                <td className="px-2 py-0.5 text-zinc-500 truncate max-w-40 text-[10px] font-mono">
+                <td className="px-2 py-0.5 text-fg-muted truncate max-w-40 text-[10px] font-mono">
                   {c.ports || "-"}
                 </td>
                 <td className="px-2 py-0.5 text-right">
@@ -294,7 +294,7 @@ function Btn({
         e.stopPropagation();
         onClick();
       }}
-      className={`p-0.5 text-zinc-600 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200 transition-colors ${className}`}
+      className={`p-0.5 text-fg-muted hover:text-zinc-800 dark:hover:text-zinc-200 transition-colors ${className}`}
     >
       {children}
     </button>

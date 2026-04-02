@@ -563,14 +563,12 @@ export default function SshTerminalWindow({
             <span
               className={`inline-block h-2 w-2 rounded-full ${statusColor}`}
             />
-            <span className="text-zinc-500 dark:text-zinc-400">
-              {statusText}
-            </span>
+            <span className="text-fg-muted">{statusText}</span>
           </div>
 
           {hostStats && connected && (
             <>
-              <span className="text-zinc-500 dark:text-zinc-500">|</span>
+              <span className="text-fg-muted">|</span>
               <StatGauge
                 label="CPU"
                 percent={hostStats.cpuUsagePercent}
@@ -584,7 +582,7 @@ export default function SshTerminalWindow({
               />
               {(hostStats.memBuffersBytes > 0 ||
                 hostStats.memCachedBytes > 0) && (
-                <span className="text-zinc-500 dark:text-zinc-500 text-[10px]">
+                <span className="text-fg-muted text-[10px]">
                   Buf {formatBytes(hostStats.memBuffersBytes)} / Cache{" "}
                   {formatBytes(hostStats.memCachedBytes)}
                 </span>
@@ -619,7 +617,7 @@ export default function SshTerminalWindow({
             type="button"
             onClick={handleDuplicate}
             title="复制会话"
-            className="flex items-center justify-center h-5 w-5 rounded text-zinc-500 dark:text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200 hover:bg-black/[0.08] dark:hover:bg-zinc-700/60 transition-colors"
+            className="flex items-center justify-center h-5 w-5 rounded text-fg-muted hover:text-zinc-800 dark:hover:text-zinc-200 hover:bg-black/[0.08] dark:hover:bg-zinc-700/60 transition-colors"
           >
             <CopyPlus className="h-3.5 w-3.5" />
           </button>
@@ -769,7 +767,7 @@ function TabButton({
       className={`relative flex items-center gap-1 px-3 py-1 text-xs transition-colors cursor-pointer ${
         active && !collapsed
           ? "text-[var(--accent-text)] border-b-2 border-[var(--accent)] -mb-px"
-          : "text-zinc-500 dark:text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300"
+          : "text-fg-muted hover:text-zinc-800 dark:hover:text-zinc-300"
       }`}
     >
       {icon}
@@ -803,21 +801,17 @@ function StatGauge({
 
   return (
     <div className="flex items-center gap-1.5">
-      <span className="text-zinc-600 dark:text-zinc-400">{label}</span>
+      <span className="text-fg-muted">{label}</span>
       <div className="w-16 h-1.5 bg-black/[0.10] dark:bg-zinc-800 rounded-full overflow-hidden">
         <div
           className={`h-full rounded-full ${barColor} transition-all duration-500`}
           style={{ width: `${Math.min(percent, 100)}%` }}
         />
       </div>
-      <span className="text-zinc-700 dark:text-zinc-300 tabular-nums w-9 text-right">
+      <span className="text-fg-secondary tabular-nums w-9 text-right">
         {percent.toFixed(0)}%
       </span>
-      {detail && (
-        <span className="text-zinc-500 dark:text-zinc-500 text-[10px]">
-          {detail}
-        </span>
-      )}
+      {detail && <span className="text-fg-muted text-[10px]">{detail}</span>}
     </div>
   );
 }

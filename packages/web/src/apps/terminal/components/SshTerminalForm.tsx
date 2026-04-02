@@ -79,7 +79,7 @@ export default function SshTerminalForm({
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-4 p-1">
       <div className="flex flex-col gap-1.5">
-        <span className="text-xs text-zinc-600 dark:text-zinc-400">名称</span>
+        <span className="text-xs text-fg-muted">名称</span>
         <Input
           value={name}
           onChange={(e) => setName(e.target.value)}
@@ -90,7 +90,7 @@ export default function SshTerminalForm({
 
       <div className="grid grid-cols-3 gap-3">
         <div className="col-span-2 flex flex-col gap-1.5">
-          <span className="text-xs text-zinc-600 dark:text-zinc-400">主机</span>
+          <span className="text-xs text-fg-muted">主机</span>
           <Input
             value={host}
             onChange={(e) => setHost(e.target.value)}
@@ -99,7 +99,7 @@ export default function SshTerminalForm({
           />
         </div>
         <div className="flex flex-col gap-1.5">
-          <span className="text-xs text-zinc-600 dark:text-zinc-400">端口</span>
+          <span className="text-xs text-fg-muted">端口</span>
           <Input
             type="number"
             value={port}
@@ -110,7 +110,7 @@ export default function SshTerminalForm({
       </div>
 
       <div className="flex flex-col gap-1.5">
-        <span className="text-xs text-zinc-600 dark:text-zinc-400">用户名</span>
+        <span className="text-xs text-fg-muted">用户名</span>
         <Input
           value={username}
           onChange={(e) => setUsername(e.target.value)}
@@ -120,9 +120,7 @@ export default function SshTerminalForm({
       </div>
 
       <div className="flex flex-col gap-1.5">
-        <span className="text-xs text-zinc-600 dark:text-zinc-400">
-          认证方式
-        </span>
+        <span className="text-xs text-fg-muted">认证方式</span>
         <Select
           value={authMethod}
           onChange={(val) => setAuthMethod(val)}
@@ -132,7 +130,7 @@ export default function SshTerminalForm({
 
       {authMethod === "password" ? (
         <div className="flex flex-col gap-1.5">
-          <span className="text-xs text-zinc-600 dark:text-zinc-400">
+          <span className="text-xs text-fg-muted">
             密码{terminal ? "（留空则不修改）" : ""}
           </span>
           <Input
@@ -146,7 +144,7 @@ export default function SshTerminalForm({
       ) : (
         <>
           <div className="flex flex-col gap-1.5">
-            <span className="text-xs text-zinc-600 dark:text-zinc-400">
+            <span className="text-xs text-fg-muted">
               私钥{terminal ? "（留空则不修改）" : ""}
             </span>
             <Input.TextArea
@@ -159,9 +157,7 @@ export default function SshTerminalForm({
             />
           </div>
           <div className="flex flex-col gap-1.5">
-            <span className="text-xs text-zinc-600 dark:text-zinc-400">
-              私钥密码（可选）
-            </span>
+            <span className="text-xs text-fg-muted">私钥密码（可选）</span>
             <Input
               type="password"
               value={passphrase}
@@ -173,9 +169,7 @@ export default function SshTerminalForm({
       )}
 
       <div className="flex flex-col gap-1.5">
-        <span className="text-xs text-zinc-600 dark:text-zinc-400">
-          启动命令（可选）
-        </span>
+        <span className="text-xs text-fg-muted">启动命令（可选）</span>
         <Input
           value={startupCommand}
           onChange={(e) => setStartupCommand(e.target.value)}
@@ -184,9 +178,7 @@ export default function SshTerminalForm({
       </div>
 
       <div className="flex flex-col gap-1.5">
-        <span className="text-xs text-zinc-600 dark:text-zinc-400">
-          备注（可选）
-        </span>
+        <span className="text-xs text-fg-muted">备注（可选）</span>
         <textarea
           className="w-full rounded-lg border border-[var(--glass-border)] bg-transparent px-3 py-2 text-sm text-neutral-900 dark:text-neutral-200 placeholder:text-neutral-400 dark:placeholder:text-neutral-600 focus:border-[var(--accent)] focus:outline-none resize-y"
           rows={2}

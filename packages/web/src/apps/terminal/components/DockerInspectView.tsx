@@ -48,17 +48,17 @@ export default function DockerInspectView({
         <button
           type="button"
           onClick={onBack}
-          className="p-0.5 text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 transition-colors"
+          className="p-0.5 text-fg-muted hover:text-zinc-700 dark:hover:text-zinc-300 transition-colors"
         >
           <ArrowLeft className="h-3 w-3" />
         </button>
-        <span className="text-xs text-zinc-700 dark:text-zinc-300 font-medium truncate">
+        <span className="text-xs text-fg-secondary font-medium truncate">
           {containerId}
         </span>
         <button
           type="button"
           onClick={fetchInspect}
-          className="p-0.5 text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 transition-colors ml-auto"
+          className="p-0.5 text-fg-muted hover:text-zinc-700 dark:hover:text-zinc-300 transition-colors ml-auto"
         >
           {loading ? (
             <LoadingOutlined className="h-3 w-3" />
@@ -71,9 +71,9 @@ export default function DockerInspectView({
       {/* Content */}
       <div className="flex-1 overflow-y-auto px-3 py-2 space-y-3 text-xs">
         {loading && !data ? (
-          <div className="text-zinc-600">加载中...</div>
+          <div className="text-fg-muted">加载中...</div>
         ) : !data ? (
-          <div className="text-zinc-600">无法获取容器信息</div>
+          <div className="text-fg-muted">无法获取容器信息</div>
         ) : (
           <>
             {/* Basic info */}
@@ -106,7 +106,7 @@ export default function DockerInspectView({
               {data.networks.length > 0 && (
                 <table className="w-full border-collapse mt-1">
                   <thead>
-                    <tr className="text-zinc-600">
+                    <tr className="text-fg-muted">
                       <th className="text-left font-normal pr-2">网络</th>
                       <th className="text-left font-normal pr-2">IP</th>
                       <th className="text-left font-normal pr-2">网关</th>
@@ -115,10 +115,7 @@ export default function DockerInspectView({
                   </thead>
                   <tbody>
                     {data.networks.map((n) => (
-                      <tr
-                        key={n.name}
-                        className="text-zinc-600 dark:text-zinc-400"
-                      >
+                      <tr key={n.name} className="text-fg-muted">
                         <td className="pr-2 py-0.5">{n.name}</td>
                         <td className="pr-2 py-0.5 font-mono">
                           {n.ipAddress || "-"}
@@ -126,7 +123,7 @@ export default function DockerInspectView({
                         <td className="pr-2 py-0.5 font-mono">
                           {n.gateway || "-"}
                         </td>
-                        <td className="py-0.5 font-mono text-zinc-600">
+                        <td className="py-0.5 font-mono text-fg-muted">
                           {n.macAddress || "-"}
                         </td>
                       </tr>
@@ -139,7 +136,7 @@ export default function DockerInspectView({
             {/* Port bindings */}
             {data.portBindings && data.portBindings !== "{}" && (
               <Section title="端口映射">
-                <pre className="text-[10px] text-zinc-600 dark:text-zinc-400 font-mono whitespace-pre-wrap break-all">
+                <pre className="text-[10px] text-fg-muted font-mono whitespace-pre-wrap break-all">
                   {formatPortBindings(data.portBindings)}
                 </pre>
               </Section>
@@ -150,7 +147,7 @@ export default function DockerInspectView({
               <Section title="挂载">
                 <table className="w-full border-collapse mt-1">
                   <thead>
-                    <tr className="text-zinc-600">
+                    <tr className="text-fg-muted">
                       <th className="text-left font-normal pr-2">源</th>
                       <th className="text-left font-normal pr-2">目标</th>
                       <th className="text-left font-normal pr-2">模式</th>
@@ -161,7 +158,7 @@ export default function DockerInspectView({
                     {data.mounts.map((m) => (
                       <tr
                         key={`${m.source}-${m.destination}`}
-                        className="text-zinc-600 dark:text-zinc-400"
+                        className="text-fg-muted"
                       >
                         <td className="pr-2 py-0.5 font-mono truncate max-w-40">
                           {m.source}
@@ -188,10 +185,8 @@ export default function DockerInspectView({
                     const val = eqIdx > 0 ? e.slice(eqIdx + 1) : "";
                     return (
                       <div key={e} className="flex gap-1">
-                        <span className="text-zinc-500 shrink-0">{key}=</span>
-                        <span className="text-zinc-600 dark:text-zinc-400 break-all">
-                          {val}
-                        </span>
+                        <span className="text-fg-muted shrink-0">{key}=</span>
+                        <span className="text-fg-muted break-all">{val}</span>
                       </div>
                     );
                   })}
@@ -214,7 +209,7 @@ function Section({
 }) {
   return (
     <div>
-      <div className="text-[10px] text-zinc-600 uppercase tracking-wider mb-1">
+      <div className="text-[10px] text-fg-muted uppercase tracking-wider mb-1">
         {title}
       </div>
       {children}
@@ -233,10 +228,8 @@ function Row({
 }) {
   return (
     <div className="flex gap-2 py-0.5">
-      <span className="text-zinc-600 w-20 shrink-0">{label}</span>
-      <span
-        className={`text-zinc-600 dark:text-zinc-400 break-all ${mono ? "font-mono" : ""}`}
-      >
+      <span className="text-fg-muted w-20 shrink-0">{label}</span>
+      <span className={`text-fg-muted break-all ${mono ? "font-mono" : ""}`}>
         {value || "-"}
       </span>
     </div>
