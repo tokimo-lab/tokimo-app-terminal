@@ -86,6 +86,7 @@ export default function DockerContainerTable({
               {
                 key: "start",
                 label: "启动",
+                icon: <Play size={13} />,
                 onClick: () => doAction(c.name, "start"),
               },
             ]
@@ -95,16 +96,19 @@ export default function DockerContainerTable({
               {
                 key: "stop",
                 label: "停止",
+                icon: <Square size={13} />,
                 onClick: () => doAction(c.name, "stop"),
               },
               {
                 key: "restart",
                 label: "重启",
+                icon: <RotateCw size={13} />,
                 onClick: () => doAction(c.name, "restart"),
               },
               {
                 key: "pause",
                 label: "暂停",
+                icon: <Pause size={13} />,
                 onClick: () => doAction(c.name, "pause"),
               },
             ]
@@ -114,11 +118,13 @@ export default function DockerContainerTable({
               {
                 key: "unpause",
                 label: "恢复",
+                icon: <Play size={13} />,
                 onClick: () => doAction(c.name, "unpause"),
               },
               {
                 key: "stop-p",
                 label: "停止",
+                icon: <Square size={13} />,
                 onClick: () => doAction(c.name, "stop"),
               },
             ]
@@ -126,14 +132,21 @@ export default function DockerContainerTable({
         {
           key: "logs",
           label: "查看日志",
+          icon: <ScrollText size={13} />,
           onClick: () => onViewLogs(c.name, c.name),
         },
-        { key: "inspect", label: "详细信息", onClick: () => onInspect(c.name) },
+        {
+          key: "inspect",
+          label: "详细信息",
+          icon: <Info size={13} />,
+          onClick: () => onInspect(c.name),
+        },
         ...(isStopped
           ? [
               {
                 key: "rm",
                 label: "删除容器",
+                icon: <Trash2 size={13} />,
                 danger: true,
                 onClick: () => doAction(c.name, "rm"),
               },

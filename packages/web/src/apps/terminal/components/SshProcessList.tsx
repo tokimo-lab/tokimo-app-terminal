@@ -4,7 +4,7 @@
  * Right-click context menu to kill processes.
  */
 import { useContextMenu } from "@tokiomo/components";
-import { RefreshCw } from "lucide-react";
+import { CircleX, OctagonX, Pause, Play, RefreshCw } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { api } from "@/generated/rust-api";
 import type { SshProcessEntry } from "@/generated/rust-types/SshProcessEntry";
@@ -84,22 +84,26 @@ export default function SshProcessList({
         {
           key: "term",
           label: "终止 (SIGTERM)",
+          icon: <CircleX size={13} />,
           onClick: () => handleKill(proc.pid, "TERM"),
         },
         {
           key: "kill",
           label: "强制终止 (SIGKILL)",
+          icon: <OctagonX size={13} />,
           danger: true,
           onClick: () => handleKill(proc.pid, "KILL"),
         },
         {
           key: "stop",
           label: "挂起 (SIGSTOP)",
+          icon: <Pause size={13} />,
           onClick: () => handleKill(proc.pid, "STOP"),
         },
         {
           key: "cont",
           label: "继续 (SIGCONT)",
+          icon: <Play size={13} />,
           onClick: () => handleKill(proc.pid, "CONT"),
         },
       ]);

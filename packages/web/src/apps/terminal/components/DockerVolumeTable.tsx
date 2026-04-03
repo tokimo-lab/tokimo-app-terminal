@@ -46,6 +46,7 @@ export default function DockerVolumeTable({
         {
           key: "rm",
           label: "删除卷",
+          icon: <Trash2 size={13} />,
           danger: true,
           onClick: () => handleRemove(v.name),
         },

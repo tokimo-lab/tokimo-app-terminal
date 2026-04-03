@@ -61,6 +61,7 @@ export default function DockerImageTable({
         {
           key: "rmi",
           label: "删除镜像",
+          icon: <Trash2 size={13} />,
           danger: true,
           onClick: () => handleRemove(img.id),
         },

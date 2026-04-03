@@ -52,6 +52,7 @@ export default function DockerNetworkTable({
               {
                 key: "rm",
                 label: "删除网络",
+                icon: <Trash2 size={13} />,
                 danger: true,
                 onClick: () => handleRemove(n.id),
               },
