@@ -13,6 +13,11 @@ export const manifest: AppManifest = {
   order: 71,
   color: "#8b5cf6",
   component: () => import("./pages/TerminalAppPage"),
+  windowType: "terminal",
+  windowComponent: () =>
+    import("./components/TerminalContent").then((m) => ({
+      default: m.default,
+    })),
   fullBleed: true,
 
   componentSettings: [

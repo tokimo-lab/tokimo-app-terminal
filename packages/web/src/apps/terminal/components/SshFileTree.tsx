@@ -37,10 +37,10 @@ import {
   writeDragPayload,
 } from "@/apps/transfer/components/drag-drop";
 import { useTransfer } from "@/apps/transfer/components/use-transfer";
+import { buildSshFileUrl } from "@/apps/viewers/file-url";
 import { api, type RustApiError } from "@/generated/rust-api";
 import { useComponentPreference } from "@/lib/use-preference";
 import { useWindowActions } from "@/system";
-import { buildSshFileUrl } from "@/viewer/file-url";
 import { formatBytes } from "./ssh-terminal-utils";
 
 // ── Upload queue types ────────────────────────────────────────────────────────
