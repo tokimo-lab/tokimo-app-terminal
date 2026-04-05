@@ -39,7 +39,7 @@ import {
 import { useTransfer } from "@/apps/transfer/components/use-transfer";
 import { buildSshFileUrl } from "@/apps/viewers/file-url";
 import { api, type RustApiError } from "@/generated/rust-api";
-import { useComponentPreference } from "@/lib/use-preference";
+import { useComponentPreference } from "@/shared/hooks/use-preference";
 import { useWindowActions } from "@/system";
 import { formatBytes } from "./ssh-terminal-utils";
 

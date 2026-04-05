@@ -24,8 +24,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "@/generated/rust-api";
 import type { SshHostStats } from "@/generated/rust-types/SshHostStats";
 import { devWsBase } from "@/lib/server-base";
-import { useComponentPreference } from "@/lib/use-preference";
 import { randomUUID } from "@/lib/uuid";
+import { useComponentPreference } from "@/shared/hooks/use-preference";
 import {
   useThemeCore,
   useWindowActions,
