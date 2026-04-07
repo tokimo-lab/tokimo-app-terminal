@@ -34,6 +34,7 @@ import {
   type UpdateSshTerminalInput,
 } from "@/generated/rust-api";
 import { randomUUID } from "@/lib/uuid";
+import { useContainerWidth } from "@/shared/hooks/use-container-width";
 import { useWindowNav } from "@/system";
 
 const SshTerminalWindow = lazy(
@@ -70,6 +71,8 @@ export default function TerminalAppPage() {
   const toast = useToast();
   const { metadata, updateMetadata, route, replace, navigate, goBack } =
     useWindowNav();
+  const [containerRef, containerWidth] = useContainerWidth();
+  const sidebarCollapsed = containerWidth > 0 && containerWidth < 720;
   const { open: openCtxMenu, contextMenu } = useContextMenu();
 
   // Derive selection from window route
@@ -139,7 +142,7 @@ export default function TerminalAppPage() {
         title: "删除终端",
         content: `确定要删除「${t.name}」吗？`,
         okText: "删除",
-        okButtonProps: { danger: true },
+        variant: "danger",
         cancelText: "取消",
         onOk: () => {
           setSessions((prev) => {
@@ -201,10 +204,11 @@ export default function TerminalAppPage() {
   );
 
   return (
-    <div className="flex h-full">
+    <div ref={containerRef} className="flex h-full">
       {/* ── Left Sidebar ── */}
       <AppSidebar
         width={224}
+        collapsed={sidebarCollapsed}
         sections={[{ items: sidebarItems }]}
         activeKey={
           selection.kind === "terminal" || selection.kind === "edit"
