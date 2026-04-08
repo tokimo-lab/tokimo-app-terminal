@@ -63,4 +63,46 @@ export const manifest: AppManifest = {
       ],
     },
   ],
+
+  userSettings: {
+    label: "settings.terminal.title",
+    order: 30,
+    preferenceScope: { scope: "component", scopeId: "terminal" },
+    sections: [
+      {
+        key: "fileBrowser",
+        label: "settings.terminal.fileBrowser",
+        fields: [
+          {
+            key: "viewMode",
+            type: "select",
+            label: "settings.terminal.viewMode",
+            description: "settings.terminal.viewModeDesc",
+            defaultValue: "list",
+            options: [
+              { label: "settings.terminal.viewList", value: "list" },
+              { label: "settings.terminal.viewGrid", value: "grid" },
+            ],
+          },
+        ],
+      },
+      {
+        key: "theme",
+        label: "settings.terminal.theme",
+        fields: [
+          {
+            key: "colorScheme",
+            type: "select",
+            label: "settings.terminal.colorScheme",
+            description: "settings.terminal.colorSchemeDesc",
+            defaultValue: "auto",
+            options: TERMINAL_THEMES.map((t) => ({
+              label: t.name,
+              value: t.id,
+            })),
+          },
+        ],
+      },
+    ],
+  },
 };
