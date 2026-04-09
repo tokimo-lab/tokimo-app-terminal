@@ -200,7 +200,7 @@ export default function SshTerminalForm({
       <div className="flex flex-col gap-1.5">
         <span className="text-xs text-fg-muted">备注（可选）</span>
         <textarea
-          className="w-full rounded-lg border border-[var(--glass-border)] bg-transparent px-3 py-2 text-sm text-fg-primary placeholder:text-fg-muted focus:border-[var(--accent)] focus:outline-none resize-y"
+          className="w-full rounded-lg border border-border-base bg-transparent px-3 py-2 text-sm text-fg-primary placeholder:text-fg-muted focus:border-[var(--accent)] focus:outline-none resize-y"
           rows={2}
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
