@@ -39,6 +39,7 @@ export const manifest: AppManifest = {
               options: [
                 { label: "settings.terminal.viewList", value: "list" },
                 { label: "settings.terminal.viewGrid", value: "grid" },
+                { label: "settings.terminal.viewColumn", value: "column" },
               ],
             },
           ],
@@ -82,6 +83,7 @@ export const manifest: AppManifest = {
             options: [
               { label: "settings.terminal.viewList", value: "list" },
               { label: "settings.terminal.viewGrid", value: "grid" },
+              { label: "settings.terminal.viewColumn", value: "column" },
             ],
           },
         ],

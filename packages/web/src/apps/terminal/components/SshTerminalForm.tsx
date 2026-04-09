@@ -8,6 +8,19 @@ import type {
 
 interface SshTerminalFormProps {
   terminal: SshTerminalOutput | null;
+  /** 复制模式：预填初始值（仅在 terminal=null 时生效） */
+  defaultValues?: Partial<
+    Pick<
+      SshTerminalOutput,
+      | "name"
+      | "host"
+      | "port"
+      | "username"
+      | "authMethod"
+      | "startupCommand"
+      | "notes"
+    >
+  >;
   onSubmit: (data: CreateSshTerminalInput | UpdateSshTerminalInput) => void;
   onCancel?: () => void;
   isLoading: boolean;
@@ -20,24 +33,31 @@ const AUTH_METHODS = [
 
 export default function SshTerminalForm({
   terminal,
+  defaultValues,
   onSubmit,
   onCancel,
   isLoading,
 }: SshTerminalFormProps) {
-  const [name, setName] = useState(terminal?.name ?? "");
-  const [host, setHost] = useState(terminal?.host ?? "");
-  const [port, setPort] = useState(String(terminal?.port ?? 22));
-  const [username, setUsername] = useState(terminal?.username ?? "root");
+  const [name, setName] = useState(terminal?.name ?? defaultValues?.name ?? "");
+  const [host, setHost] = useState(terminal?.host ?? defaultValues?.host ?? "");
+  const [port, setPort] = useState(
+    String(terminal?.port ?? defaultValues?.port ?? 22),
+  );
+  const [username, setUsername] = useState(
+    terminal?.username ?? defaultValues?.username ?? "root",
+  );
   const [authMethod, setAuthMethod] = useState(
-    terminal?.authMethod ?? "password",
+    terminal?.authMethod ?? defaultValues?.authMethod ?? "password",
   );
   const [password, setPassword] = useState("");
   const [privateKey, setPrivateKey] = useState("");
   const [passphrase, setPassphrase] = useState("");
   const [startupCommand, setStartupCommand] = useState(
-    terminal?.startupCommand ?? "",
+    terminal?.startupCommand ?? defaultValues?.startupCommand ?? "",
   );
-  const [notes, setNotes] = useState(terminal?.notes ?? "");
+  const [notes, setNotes] = useState(
+    terminal?.notes ?? defaultValues?.notes ?? "",
+  );
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();

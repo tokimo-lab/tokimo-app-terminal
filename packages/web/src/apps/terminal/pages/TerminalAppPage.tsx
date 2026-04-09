@@ -16,7 +16,7 @@ import {
   useContextMenu,
   useToast,
 } from "@tokiomo/components";
-import { Monitor, Pencil, Plus, Trash2 } from "lucide-react";
+import { Copy, Monitor, Pencil, Plus, Trash2 } from "lucide-react";
 import {
   lazy,
   type ReactNode,
@@ -84,6 +84,10 @@ export default function TerminalAppPage() {
     parseSessions(metadata.terminalSessions),
   );
 
+  const [duplicateFrom, setDuplicateFrom] = useState<SshTerminalOutput | null>(
+    null,
+  );
+
   const setSessions = useCallback(
     (fn: (prev: Map<string, string>) => Map<string, string>) => {
       setSessionsRaw((prev) => {
@@ -101,6 +105,7 @@ export default function TerminalAppPage() {
   const createMutation = api.sshTerminal.create.useMutation({
     onSuccess: () => {
       terminalsQuery.refetch();
+      setDuplicateFrom(null);
       replace("/");
       toast.success("终端已创建");
     },
@@ -173,6 +178,15 @@ export default function TerminalAppPage() {
           icon: <Pencil size={13} />,
           onClick: () => navigate(`/${t.id}/edit`),
         },
+        {
+          key: "duplicate",
+          label: "复制",
+          icon: <Copy size={13} />,
+          onClick: () => {
+            setDuplicateFrom(t);
+            navigate("/new");
+          },
+        },
         { type: "divider" },
         {
           key: "delete",
@@ -244,13 +258,35 @@ export default function TerminalAppPage() {
 
         {/* Create form */}
         {selection.kind === "create" && (
-          <FormPanel title="新建终端" onBack={goBack}>
+          <FormPanel
+            title="新建终端"
+            onBack={() => {
+              setDuplicateFrom(null);
+              goBack();
+            }}
+          >
             <SshTerminalForm
               terminal={null}
+              defaultValues={
+                duplicateFrom
+                  ? {
+                      name: `${duplicateFrom.name} 副本`,
+                      host: duplicateFrom.host,
+                      port: duplicateFrom.port,
+                      username: duplicateFrom.username,
+                      authMethod: duplicateFrom.authMethod,
+                      startupCommand: duplicateFrom.startupCommand,
+                      notes: duplicateFrom.notes,
+                    }
+                  : undefined
+              }
               onSubmit={(data) =>
                 createMutation.mutate(data as CreateSshTerminalInput)
               }
-              onCancel={goBack}
+              onCancel={() => {
+                setDuplicateFrom(null);
+                goBack();
+              }}
               isLoading={createMutation.isPending}
             />
           </FormPanel>

@@ -59,6 +59,7 @@ export interface UploadItem {
 export type UploadQueue = UploadItem[];
 
 import { FileBreadcrumb } from "@/apps/finder/components/FileBreadcrumb";
+import { FileColumnView } from "@/apps/finder/components/FileColumnView";
 import { FileGrid } from "@/apps/finder/components/FileGrid";
 import {
   NewFolderModal,
@@ -194,13 +195,16 @@ export default function SshFileTree({
 
   // View state
   const [viewMode, setViewMode] = useState<ViewMode>(
-    savedViewMode === "grid" || savedViewMode === "list"
-      ? savedViewMode
+    savedViewMode === "grid" ||
+      savedViewMode === "list" ||
+      savedViewMode === "column"
+      ? (savedViewMode as ViewMode)
       : "list",
   );
   const [sortBy, setSortBy] = useState<SortBy>("name");
   const [sortDir, setSortDir] = useState<SortDir>("asc");
   const [showHidden, setShowHidden] = useState(false);
+  const [columnLeafPath, setColumnLeafPath] = useState<string | null>(null);
 
   // Modals
   const [showNewFolder, setShowNewFolder] = useState(false);
@@ -316,13 +320,28 @@ export default function SshFileTree({
     return sortNodes(filtered, sortBy, sortDir);
   }, [rawNodes, showHidden, sortBy, sortDir]);
 
+  const effectivePath =
+    viewMode === "column" && columnLeafPath ? columnLeafPath : currentPath;
+
   useEffect(() => {
-    onPathChange?.(currentPath);
-  }, [currentPath, onPathChange]);
+    onPathChange?.(effectivePath);
+  }, [effectivePath, onPathChange]);
 
   const navigateTo = useCallback((path: string) => {
     setCurrentPath(path);
   }, []);
+
+  // SSH directory fetcher for column view sub-columns
+  const fetchSshDirectory = useCallback(
+    async (dirPath: string): Promise<FileNode[]> => {
+      const resp = await api.sshTerminal.ls.fetch({
+        id: terminalId,
+        path: dirPath,
+      });
+      return toFileNodes(resp.entries, dirPath);
+    },
+    [terminalId],
+  );
 
   // ── Actions ──
 
@@ -687,7 +706,7 @@ export default function SshFileTree({
       {/* Breadcrumb */}
       <div className="border-b border-black/[0.06] dark:border-white/[0.08] shrink-0">
         <FileBreadcrumb
-          currentPath={currentPath}
+          currentPath={effectivePath}
           onNavigate={navigateTo}
           sourceType="ssh"
           sourceLabel={connectionLabel}
@@ -702,14 +721,20 @@ export default function SshFileTree({
         showHidden={showHidden}
         isFetching={loading}
         onNewFolder={() => setShowNewFolder(true)}
-        onSetViewMode={setViewMode}
+        onSetViewMode={(mode) => {
+          if (viewMode === "column" && mode !== "column") {
+            const target = columnLeafPath ?? currentPath;
+            if (target !== currentPath) navigateTo(target);
+          }
+          setViewMode(mode);
+        }}
         onSetSortBy={setSortBy}
         onSetSortDir={setSortDir}
         onSetShowHidden={setShowHidden}
         onRefresh={refresh}
       />
 
-      {/* File grid / list */}
+      {/* File grid / list / column */}
       <div className="flex-1 min-h-0">
         {loading ? (
           <div className="flex items-center justify-center h-full">
@@ -720,6 +745,30 @@ export default function SshFileTree({
             <FolderOpen size={32} strokeWidth={1.5} />
             <span>{t("fileManager.pathNotFound")}</span>
           </div>
+        ) : viewMode === "column" ? (
+          <FileColumnView
+            currentPath={currentPath}
+            nodes={nodes}
+            selectedPaths={selectedPaths}
+            renaming={null}
+            sortBy={sortBy}
+            sortDir={sortDir}
+            showHidden={showHidden}
+            fetchDirectory={fetchSshDirectory}
+            onNavigate={navigateTo}
+            onLeafPathChange={setColumnLeafPath}
+            onItemClick={handleItemClick}
+            onItemDoubleClick={handleItemDoubleClick}
+            onItemContextMenu={handleItemContextMenu}
+            onEmptyContextMenu={handleEmptyContextMenu}
+            onRenameSubmit={(_path: string, _name: string) => {}}
+            onRenameCancel={() => {}}
+            onClearSelection={clearSelection}
+            onDragStart={handleDragStart}
+            onDragEnd={handleDragEnd}
+            onDropToFolder={handleDropToFolder}
+            draggingPaths={draggingPaths}
+          />
         ) : (
           <FileGrid
             nodes={nodes}
@@ -756,7 +805,7 @@ export default function SshFileTree({
             ` · ${selectedPaths.size} ${t("fileManager.selected")}`}
         </span>
         <span className="truncate ml-4 font-mono opacity-80">
-          {`ssh://${connectionLabel || ""}${currentPath}`}
+          {`ssh://${connectionLabel || ""}${effectivePath}`}
         </span>
       </div>
 
