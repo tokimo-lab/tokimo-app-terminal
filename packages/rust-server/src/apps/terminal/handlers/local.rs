@@ -13,11 +13,11 @@ use portable_pty::{CommandBuilder, NativePtySystem, PtySize, PtySystem};
 use serde::Deserialize;
 use tokio::sync::mpsc;
 use uuid::Uuid;
-use crate::thread_util::named_spawn_blocking;
+use crate::common::thread_util::named_spawn_blocking;
 
 use crate::error::AppError;
 use crate::handlers::user::AuthUser;
-use crate::pty_session_registry::{PtyInput, PtySessionEntry};
+use crate::common::pty_session_registry::{PtyInput, PtySessionEntry};
 use crate::AppState;
 
 #[derive(Deserialize)]
@@ -46,7 +46,7 @@ pub async fn terminal_ws(
 async fn handle_terminal_session(
     socket: WebSocket,
     session_id: Option<String>,
-    registry: crate::pty_session_registry::PtySessionRegistry,
+    registry: crate::common::pty_session_registry::PtySessionRegistry,
 ) {
     let (mut ws_sink, mut ws_stream) = socket.split();
 

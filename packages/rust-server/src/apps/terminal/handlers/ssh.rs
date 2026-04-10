@@ -298,9 +298,9 @@ async fn handle_ssh_ws(
     session_id: Option<String>,
     creds: SshCredentials,
     startup_command: Option<String>,
-    registry: crate::ssh_session_registry::SshSessionRegistry,
+    registry: crate::common::ssh_session_registry::SshSessionRegistry,
 ) {
-    use crate::ssh_session_registry::SshSessionEntry;
+    use crate::common::ssh_session_registry::SshSessionEntry;
 
     let (mut ws_sink, mut ws_stream) = socket.split();
 
