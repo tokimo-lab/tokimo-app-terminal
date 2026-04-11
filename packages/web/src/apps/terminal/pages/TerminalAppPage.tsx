@@ -14,7 +14,6 @@ import {
   Modal,
   Spin,
   useContextMenu,
-  useToast,
 } from "@tokiomo/components";
 import { Copy, Monitor, Pencil, Plus, Trash2 } from "lucide-react";
 import {
@@ -36,6 +35,7 @@ import {
 import { randomUUID } from "@/lib/uuid";
 import { useContainerWidth } from "@/shared/hooks/use-container-width";
 import { useWindowNav } from "@/system";
+import { useMessage } from "@/system/notifications/useMessage";
 
 const SshTerminalWindow = lazy(
   () => import("@/apps/terminal/components/SshTerminalWindow"),
@@ -68,7 +68,7 @@ function parseSessions(v: unknown): Map<string, string> {
 // ── Page ──
 
 export default function TerminalAppPage() {
-  const toast = useToast();
+  const message = useMessage();
   const { metadata, updateMetadata, route, replace, navigate, goBack } =
     useWindowNav();
   const [containerRef, containerWidth] = useContainerWidth();
@@ -107,7 +107,7 @@ export default function TerminalAppPage() {
       terminalsQuery.refetch();
       setDuplicateFrom(null);
       replace("/");
-      toast.success("终端已创建");
+      message.success("终端已创建");
     },
   });
 
@@ -115,14 +115,14 @@ export default function TerminalAppPage() {
     onSuccess: () => {
       terminalsQuery.refetch();
       replace("/");
-      toast.success("终端已更新");
+      message.success("终端已更新");
     },
   });
 
   const deleteMutation = api.sshTerminal.delete.useMutation({
     onSuccess: () => {
       terminalsQuery.refetch();
-      toast.success("终端已删除");
+      message.success("终端已删除");
     },
   });
 

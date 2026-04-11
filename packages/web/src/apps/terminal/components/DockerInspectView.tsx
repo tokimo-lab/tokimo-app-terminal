@@ -7,6 +7,7 @@ import { ArrowLeft, RefreshCw } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { api } from "@/generated/rust-api";
 import type { DockerContainerInspect } from "@/generated/rust-types/DockerContainerInspect";
+import { useDateFormat } from "@/system";
 
 interface DockerInspectViewProps {
   terminalId: string;
@@ -21,6 +22,7 @@ export default function DockerInspectView({
 }: DockerInspectViewProps) {
   const [data, setData] = useState<DockerContainerInspect | null>(null);
   const [loading, setLoading] = useState(true);
+  const { formatLong } = useDateFormat();
 
   const fetchInspect = useCallback(async () => {
     setLoading(true);
@@ -82,9 +84,15 @@ export default function DockerInspectView({
               <Row label="镜像" value={data.image} mono />
               <Row label="状态" value={data.state} />
               <Row label="PID" value={String(data.pid)} />
-              <Row label="启动时间" value={formatTime(data.startedAt)} />
+              <Row
+                label="启动时间"
+                value={formatLong(data.startedAt) || data.startedAt}
+              />
               {data.finishedAt && !data.finishedAt.startsWith("0001") && (
-                <Row label="停止时间" value={formatTime(data.finishedAt)} />
+                <Row
+                  label="停止时间"
+                  value={formatLong(data.finishedAt) || data.finishedAt}
+                />
               )}
               <Row label="重启次数" value={String(data.restartCount)} />
               {data.platform && <Row label="平台" value={data.platform} />}
@@ -234,15 +242,6 @@ function Row({
       </span>
     </div>
   );
-}
-
-function formatTime(iso: string): string {
-  if (!iso || iso.startsWith("0001")) return "-";
-  try {
-    return new Date(iso).toLocaleString();
-  } catch {
-    return iso;
-  }
 }
 
 function formatPortBindings(raw: string): string {

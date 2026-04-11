@@ -12,7 +12,6 @@ import {
   Modal,
   Spin,
   useContextMenu,
-  useToast,
 } from "@tokiomo/components";
 import {
   CheckCircle,
@@ -41,6 +40,7 @@ import { buildSshFileUrl } from "@/apps/viewers/file-url";
 import { api, type RustApiError } from "@/generated/rust-api";
 import { useComponentPreference } from "@/shared/hooks/use-preference";
 import { useWindowActions } from "@/system";
+import { useMessage } from "@/system/notifications/useMessage";
 import { formatBytes } from "./ssh-terminal-utils";
 
 // ── Upload queue types ────────────────────────────────────────────────────────
@@ -222,7 +222,7 @@ export default function SshFileTree({
   const pendingTransferIds = useRef(new Set<string>());
   const completedTransferIds = useRef(new Set<string>());
 
-  const toast = useToast();
+  const message = useMessage();
 
   // Context menu
   const { open: openCtxMenu, contextMenu } = useContextMenu();
@@ -434,7 +434,7 @@ export default function SshFileTree({
               metadata: { transferId },
             });
           })
-          .catch((err: Error) => toast.error(err.message));
+          .catch((err: Error) => message.error(err.message));
         setDraggingPaths(new Set());
         return;
       }
@@ -459,7 +459,7 @@ export default function SshFileTree({
       createTransfer,
       windowManager,
       t,
-      toast,
+      message,
     ],
   );
 
@@ -676,7 +676,7 @@ export default function SshFileTree({
             metadata: { transferId },
           });
         })
-        .catch((err: Error) => toast.error(err.message));
+        .catch((err: Error) => message.error(err.message));
     },
     [
       terminalId,
@@ -685,7 +685,7 @@ export default function SshFileTree({
       createTransfer,
       windowManager,
       t,
-      toast,
+      message,
     ],
   );
 
