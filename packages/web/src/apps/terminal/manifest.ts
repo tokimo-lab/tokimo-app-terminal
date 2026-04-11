@@ -4,12 +4,11 @@ import type { AppManifest } from "../_framework/types";
 
 export const manifest: AppManifest = {
   id: "terminal",
-  name: "Terminal Management",
   category: "system",
   defaultSize: { width: 1100, height: 700 },
   icon: Terminal,
   image: "/page-icons/terminal.png",
-  labelKey: "terminalManagement",
+  appName: "dashboard.menu.terminalManagement",
   order: 71,
   color: "#8b5cf6",
   component: () => import("./pages/TerminalAppPage"),
