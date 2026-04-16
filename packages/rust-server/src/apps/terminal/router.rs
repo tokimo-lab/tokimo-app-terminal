@@ -5,8 +5,8 @@ use axum::{
 };
 use std::sync::Arc;
 
-use crate::AppState;
 use super::handlers;
+use crate::AppState;
 
 pub fn build_terminal_app_routes() -> Router<Arc<AppState>> {
     Router::new()

@@ -1,10 +1,11 @@
 use std::io::{Read, Write};
 use std::sync::Arc;
 
+use crate::common::thread_util::named_spawn_blocking;
 use axum::{
     extract::{
-        ws::{Message, WebSocket, WebSocketUpgrade},
         Query, State,
+        ws::{Message, WebSocket, WebSocketUpgrade},
     },
     response::IntoResponse,
 };
@@ -13,12 +14,11 @@ use portable_pty::{CommandBuilder, NativePtySystem, PtySize, PtySystem};
 use serde::Deserialize;
 use tokio::sync::mpsc;
 use uuid::Uuid;
-use crate::common::thread_util::named_spawn_blocking;
 
+use crate::AppState;
+use crate::common::pty_session_registry::{PtyInput, PtySessionEntry};
 use crate::error::AppError;
 use crate::handlers::user::AuthUser;
-use crate::common::pty_session_registry::{PtyInput, PtySessionEntry};
-use crate::AppState;
 
 #[derive(Deserialize)]
 struct ResizePayload {
@@ -195,9 +195,7 @@ async fn handle_terminal_session(
     };
 
     // Send session_id back to the client so it can reconnect.
-    let _ = ws_sink
-        .send(Message::Text(format!("\x02{session_id}").into()))
-        .await;
+    let _ = ws_sink.send(Message::Text(format!("\x02{session_id}").into())).await;
 
     // ── Bridge: client output channel → WebSocket ───────────────────────
     let send_task = tokio::spawn(async move {
@@ -221,15 +219,9 @@ async fn handle_terminal_session(
                     let text_str: &str = &text;
                     if let Some(json_str) = text_str.strip_prefix('\x01') {
                         if let Ok(resize) = serde_json::from_str::<ResizePayload>(json_str) {
-                            let _ = input_tx
-                                .send(PtyInput::Resize(resize.cols, resize.rows))
-                                .await;
+                            let _ = input_tx.send(PtyInput::Resize(resize.cols, resize.rows)).await;
                         }
-                    } else if input_tx
-                        .send(PtyInput::Data(text.as_bytes().to_vec()))
-                        .await
-                        .is_err()
-                    {
+                    } else if input_tx.send(PtyInput::Data(text.as_bytes().to_vec())).await.is_err() {
                         break;
                     }
                 }

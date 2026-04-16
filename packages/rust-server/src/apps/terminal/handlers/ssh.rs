@@ -16,9 +16,7 @@ use tokio_stream::wrappers::ReceiverStream;
 use uuid::Uuid;
 
 use crate::AppState;
-use crate::db::repos::ssh_terminal_repo::{
-    CreateSshTerminalData, SshTerminalRepo, UpdateSshTerminalData,
-};
+use crate::db::repos::ssh_terminal_repo::{CreateSshTerminalData, SshTerminalRepo, UpdateSshTerminalData};
 use crate::error::AppError;
 use crate::error::OptionExt;
 use crate::handlers::media::stream::mime_for;
@@ -40,9 +38,7 @@ fn to_creds(m: &crate::db::entities::ssh_terminals::Model) -> SshCredentials {
 }
 
 async fn get_creds(state: &AppState, id: &str) -> Result<SshCredentials, AppError> {
-    let id: Uuid = id
-        .parse()
-        .map_err(|_| AppError::BadRequest("invalid id".into()))?;
+    let id: Uuid = id.parse().map_err(|_| AppError::BadRequest("invalid id".into()))?;
     let terminal = SshTerminalRepo::get_raw(&state.db, id).await?;
     Ok(to_creds(&terminal))
 }
@@ -190,9 +186,7 @@ pub async fn get_ssh_terminal(
     AuthUser(_): AuthUser,
     Path(id): Path<String>,
 ) -> Result<Json<ApiResponse<crate::db::models::ssh_terminal::SshTerminalOutput>>, AppError> {
-    let id: Uuid = id
-        .parse()
-        .map_err(|_| AppError::BadRequest("invalid id".into()))?;
+    let id: Uuid = id.parse().map_err(|_| AppError::BadRequest("invalid id".into()))?;
     let terminal = SshTerminalRepo::get_by_id(&state.db, id).await?;
     Ok(ok(terminal))
 }
@@ -228,9 +222,7 @@ pub async fn update_ssh_terminal(
     Path(id): Path<String>,
     Json(input): Json<UpdateSshTerminalInput>,
 ) -> Result<Json<ApiResponse<crate::db::models::ssh_terminal::SshTerminalOutput>>, AppError> {
-    let id: Uuid = id
-        .parse()
-        .map_err(|_| AppError::BadRequest("invalid id".into()))?;
+    let id: Uuid = id.parse().map_err(|_| AppError::BadRequest("invalid id".into()))?;
     let terminal = SshTerminalRepo::update(
         &state.db,
         id,
@@ -258,9 +250,7 @@ pub async fn delete_ssh_terminal(
     AuthUser(_): AuthUser,
     Path(id): Path<String>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
-    let id: Uuid = id
-        .parse()
-        .map_err(|_| AppError::BadRequest("invalid id".into()))?;
+    let id: Uuid = id.parse().map_err(|_| AppError::BadRequest("invalid id".into()))?;
     SshTerminalRepo::delete(&state.db, id).await?;
     Ok(ok_empty())
 }
@@ -282,9 +272,7 @@ pub async fn ssh_terminal_ws(
     let creds = to_creds(&terminal);
     let startup_command = terminal.startup_command.clone();
     let registry = state.ssh_sessions.clone();
-    Ok(ws.on_upgrade(move |socket| {
-        handle_ssh_ws(socket, session_id, creds, startup_command, registry)
-    }))
+    Ok(ws.on_upgrade(move |socket| handle_ssh_ws(socket, session_id, creds, startup_command, registry)))
 }
 
 /// Attach a WebSocket client to a (possibly existing) SSH shell session.
@@ -320,9 +308,7 @@ async fn handle_ssh_ws(
                 let _ = client_tx.try_send(bytes::Bytes::from(entry.history.clone()));
             }
             // The session is already authenticated & running — tell the client immediately.
-            let _ = client_tx.try_send(bytes::Bytes::from_static(
-                rust_ssh_terminal::session::SSH_READY_MARKER,
-            ));
+            let _ = client_tx.try_send(bytes::Bytes::from_static(rust_ssh_terminal::session::SSH_READY_MARKER));
             entry.clients.push(client_tx);
             entry.input_tx.clone()
         } else {
@@ -398,9 +384,7 @@ async fn handle_ssh_ws(
                                 .await;
                         }
                     } else if input_tx
-                        .send(rust_ssh_terminal::ShellInput::Data(
-                            text.as_bytes().to_vec(),
-                        ))
+                        .send(rust_ssh_terminal::ShellInput::Data(text.as_bytes().to_vec()))
                         .await
                         .is_err()
                     {
@@ -576,21 +560,14 @@ pub async fn ssh_terminal_download(
     let creds = get_creds(&state, &id).await?;
 
     // Stream filename from the path
-    let filename = query
-        .path
-        .rsplit('/')
-        .next()
-        .unwrap_or("download")
-        .to_string();
+    let filename = query.path.rsplit('/').next().unwrap_or("download").to_string();
     let safe_filename = filename.replace('"', "\\\"");
 
     // Open the SSH channel and start streaming immediately — no full buffering.
     let rx = rust_ssh_terminal::files::download_stream(&creds, &query.path).await?;
 
     // Convert the mpsc receiver into an Axum streaming body.
-    let byte_stream = ReceiverStream::new(rx).map(|chunk| {
-        chunk.map_err(|e| std::io::Error::other(e.to_string()))
-    });
+    let byte_stream = ReceiverStream::new(rx).map(|chunk| chunk.map_err(|e| std::io::Error::other(e.to_string())));
 
     let content_type = mime_for(&query.path);
     // Use inline disposition for previewable types (PDF, images, etc.)
@@ -634,9 +611,7 @@ pub async fn ssh_terminal_upload(
     }
     // Reject path traversal in filename
     if query.filename.contains('/') || query.filename.contains("..") {
-        return Err(AppError::BadRequest(
-            "filename must not contain '/' or '..'".into(),
-        ));
+        return Err(AppError::BadRequest("filename must not contain '/' or '..'".into()));
     }
 
     let remote_path = if query.path.ends_with('/') {
