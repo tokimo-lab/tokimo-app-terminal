@@ -3,9 +3,9 @@
  * Lists processes via /api/apps/terminal/connections/{id}/ps endpoint.
  * Right-click context menu to kill processes.
  */
-import { useContextMenu } from "@tokiomo/components";
+import { Input, ScrollArea, useContextMenu } from "@tokiomo/components";
 import { CircleX, OctagonX, Pause, Play, RefreshCw } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { api } from "@/generated/rust-api";
 import type { SshProcessEntry } from "@/generated/rust-types/SshProcessEntry";
 import { formatBytes } from "./ssh-terminal-utils";
@@ -18,6 +18,9 @@ interface SshProcessListProps {
 type SortKey = "pid" | "user" | "cpu" | "mem" | "rss" | "command";
 type SortDir = "asc" | "desc";
 
+const ROW_HEIGHT = 24;
+const GRID_COLS = "grid-cols-[80px_100px_64px_64px_80px_minmax(0,1fr)]";
+
 export default function SshProcessList({
   terminalId,
   connected,
@@ -26,6 +29,7 @@ export default function SshProcessList({
   const [loading, setLoading] = useState(false);
   const [sortKey, setSortKey] = useState<SortKey>("cpu");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
+  const [query, setQuery] = useState("");
 
   const { open: openCtxMenu, contextMenu } = useContextMenu();
 
@@ -111,114 +115,150 @@ export default function SshProcessList({
     [openCtxMenu, handleKill],
   );
 
-  const sorted = [...processes].sort((a, b) => {
+  const visible = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    const filtered = q
+      ? processes.filter(
+          (p) =>
+            p.command.toLowerCase().includes(q) ||
+            p.user.toLowerCase().includes(q) ||
+            String(p.pid).includes(q),
+        )
+      : processes;
     const dir = sortDir === "asc" ? 1 : -1;
-    switch (sortKey) {
-      case "pid":
-        return (a.pid - b.pid) * dir;
-      case "user":
-        return a.user.localeCompare(b.user) * dir;
-      case "cpu":
-        return (a.cpu - b.cpu) * dir;
-      case "mem":
-        return (a.mem - b.mem) * dir;
-      case "rss":
-        return (a.rssKb - b.rssKb) * dir;
-      case "command":
-        return a.command.localeCompare(b.command) * dir;
-      default:
-        return 0;
-    }
-  });
+    return [...filtered].sort((a, b) => {
+      switch (sortKey) {
+        case "pid":
+          return (a.pid - b.pid) * dir;
+        case "user":
+          return a.user.localeCompare(b.user) * dir;
+        case "cpu":
+          return (a.cpu - b.cpu) * dir;
+        case "mem":
+          return (a.mem - b.mem) * dir;
+        case "rss":
+          return (a.rssKb - b.rssKb) * dir;
+        case "command":
+          return a.command.localeCompare(b.command) * dir;
+        default:
+          return 0;
+      }
+    });
+  }, [processes, query, sortKey, sortDir]);
 
   const sortIndicator = (key: SortKey) =>
     sortKey === key ? (sortDir === "asc" ? " ▲" : " ▼") : "";
 
+  const renderRow = useCallback(
+    (index: number) => {
+      const proc = visible[index];
+      if (!proc) return null;
+      return (
+        // biome-ignore lint/a11y/noStaticElementInteractions: context menu trigger only
+        <div
+          className={`grid ${GRID_COLS} items-center h-full text-fg-secondary hover:bg-black/[0.04] dark:hover:bg-white/[0.04] cursor-default`}
+          onContextMenu={(e) => handleContextMenu(e, proc)}
+        >
+          <div className="px-2 text-fg-muted tabular-nums truncate">
+            {proc.pid}
+          </div>
+          <div className="px-2 truncate">{proc.user}</div>
+          <div
+            className={`px-2 text-right tabular-nums ${proc.cpu > 50 ? "text-red-400" : proc.cpu > 10 ? "text-amber-400" : ""}`}
+          >
+            {proc.cpu.toFixed(1)}
+          </div>
+          <div
+            className={`px-2 text-right tabular-nums ${proc.mem > 50 ? "text-red-400" : proc.mem > 10 ? "text-amber-400" : ""}`}
+          >
+            {proc.mem.toFixed(1)}
+          </div>
+          <div className="px-2 text-right tabular-nums text-fg-muted">
+            {formatBytes(proc.rssKb * 1024)}
+          </div>
+          <div className="px-2 truncate">{proc.command}</div>
+        </div>
+      );
+    },
+    [visible, handleContextMenu],
+  );
+
   return (
     <div className="flex flex-col h-full overflow-hidden relative">
-      {/* Header */}
-      <div className="flex items-center justify-between px-3 py-1 border-b border-black/[0.08] dark:border-zinc-800/60 shrink-0">
-        <span className="text-xs text-fg-muted">{processes.length} 个进程</span>
+      {/* Toolbar */}
+      <div className="flex items-center gap-2 px-3 py-1 border-b border-black/[0.08] dark:border-zinc-800/60 shrink-0">
+        <span className="text-xs text-fg-muted whitespace-nowrap">
+          {visible.length}
+          {query ? ` / ${processes.length}` : ""} 个进程
+        </span>
+        <div className="flex-1 min-w-0">
+          <Input
+            size="small"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="搜索 PID / 用户 / 命令"
+          />
+        </div>
         <button
           type="button"
           onClick={fetchProcesses}
-          className="p-0.5 text-fg-muted hover:text-fg-secondary transition-colors"
+          className="p-0.5 text-fg-muted hover:text-fg-secondary transition-colors cursor-pointer"
           title="刷新进程列表"
         >
           <RefreshCw className={`h-3 w-3 ${loading ? "animate-spin" : ""}`} />
         </button>
       </div>
 
-      {/* Table */}
-      <div className="flex-1 overflow-y-auto overflow-x-auto text-xs font-mono">
-        <table className="w-full border-collapse">
-          <thead className="sticky top-0 bg-surface-elevated z-10">
-            <tr className="text-fg-secondary">
-              <SortTh onClick={() => handleSort("pid")}>
-                PID{sortIndicator("pid")}
-              </SortTh>
-              <SortTh onClick={() => handleSort("user")}>
-                USER{sortIndicator("user")}
-              </SortTh>
-              <SortTh onClick={() => handleSort("cpu")} align="right">
-                CPU%{sortIndicator("cpu")}
-              </SortTh>
-              <SortTh onClick={() => handleSort("mem")} align="right">
-                MEM%{sortIndicator("mem")}
-              </SortTh>
-              <SortTh onClick={() => handleSort("rss")} align="right">
-                RSS{sortIndicator("rss")}
-              </SortTh>
-              <SortTh onClick={() => handleSort("command")}>
-                COMMAND{sortIndicator("command")}
-              </SortTh>
-            </tr>
-          </thead>
-          <tbody>
-            {loading && processes.length === 0 ? (
-              <tr>
-                <td colSpan={6} className="text-fg-muted px-2 py-2 text-center">
-                  加载中...
-                </td>
-              </tr>
-            ) : (
-              sorted.map((proc) => (
-                <tr
-                  key={proc.pid}
-                  className="text-fg-secondary hover:bg-black/[0.04]/50 cursor-default"
-                  onContextMenu={(e) => handleContextMenu(e, proc)}
-                >
-                  <td className="px-2 py-0.5 text-fg-muted">{proc.pid}</td>
-                  <td className="px-2 py-0.5 max-w-20 truncate">{proc.user}</td>
-                  <td
-                    className={`px-2 py-0.5 text-right tabular-nums ${proc.cpu > 50 ? "text-red-400" : proc.cpu > 10 ? "text-amber-400" : ""}`}
-                  >
-                    {proc.cpu.toFixed(1)}
-                  </td>
-                  <td
-                    className={`px-2 py-0.5 text-right tabular-nums ${proc.mem > 50 ? "text-red-400" : proc.mem > 10 ? "text-amber-400" : ""}`}
-                  >
-                    {proc.mem.toFixed(1)}
-                  </td>
-                  <td className="px-2 py-0.5 text-right tabular-nums text-fg-muted">
-                    {formatBytes(proc.rssKb * 1024)}
-                  </td>
-                  <td className="px-2 py-0.5 max-w-60 truncate">
-                    {proc.command}
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
+      {/* Header */}
+      <div
+        className={`grid ${GRID_COLS} text-xs font-mono text-fg-secondary bg-surface-elevated border-b border-black/[0.08] dark:border-zinc-800/60 shrink-0`}
+      >
+        <HeaderCell onClick={() => handleSort("pid")}>
+          PID{sortIndicator("pid")}
+        </HeaderCell>
+        <HeaderCell onClick={() => handleSort("user")}>
+          USER{sortIndicator("user")}
+        </HeaderCell>
+        <HeaderCell onClick={() => handleSort("cpu")} align="right">
+          CPU%{sortIndicator("cpu")}
+        </HeaderCell>
+        <HeaderCell onClick={() => handleSort("mem")} align="right">
+          MEM%{sortIndicator("mem")}
+        </HeaderCell>
+        <HeaderCell onClick={() => handleSort("rss")} align="right">
+          RSS{sortIndicator("rss")}
+        </HeaderCell>
+        <HeaderCell onClick={() => handleSort("command")}>
+          COMMAND{sortIndicator("command")}
+        </HeaderCell>
       </div>
+
+      {/* Body */}
+      {loading && processes.length === 0 ? (
+        <div className="flex-1 flex items-center justify-center text-xs text-fg-muted">
+          加载中...
+        </div>
+      ) : visible.length === 0 ? (
+        <div className="flex-1 flex items-center justify-center text-xs text-fg-muted">
+          {processes.length === 0 ? "暂无进程" : "无匹配结果"}
+        </div>
+      ) : (
+        <ScrollArea
+          className="flex-1 min-h-0 text-xs font-mono"
+          direction="vertical"
+          itemCount={visible.length}
+          itemHeight={ROW_HEIGHT}
+          renderItem={renderRow}
+          overscan={8}
+        />
+      )}
 
       {contextMenu}
     </div>
   );
 }
 
-function SortTh({
+function HeaderCell({
   children,
   onClick,
   align = "left",
@@ -228,11 +268,12 @@ function SortTh({
   align?: "left" | "right";
 }) {
   return (
-    <th
-      className={`px-2 py-1 font-normal cursor-pointer text-fg-secondary hover:text-fg-primary transition-colors whitespace-nowrap select-none ${align === "right" ? "text-right" : "text-left"}`}
+    <button
+      type="button"
       onClick={onClick}
+      className={`px-2 py-1 font-normal cursor-pointer text-fg-secondary hover:text-fg-primary transition-colors whitespace-nowrap select-none ${align === "right" ? "text-right" : "text-left"}`}
     >
       {children}
-    </th>
+    </button>
   );
 }
