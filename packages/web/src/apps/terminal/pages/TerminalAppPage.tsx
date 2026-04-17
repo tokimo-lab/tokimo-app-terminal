@@ -1,10 +1,12 @@
 /**
  * Terminal 管理页 — 左侧终端列表 + 右侧内联终端内容。
  *
- * 左侧边栏列出所有 SSH 终端，底部 "+" 新建。
+ * 左侧边栏列出所有 SSH 终端，底部 "+" 新建（打开子弹窗）。
  * 点击条目在右侧打开 SshTerminalWindow（内联）。
  * 切换条目时右侧状态保留（组件保持挂载，visibility 切换）。
  * 选中项通过窗口路由持久化，已激活 session 持久化到窗口 metadata，刷新不丢失。
+ *
+ * 新建 / 编辑使用子弹窗（modal window），与 video app 模式一致。
  */
 
 import {
@@ -16,26 +18,13 @@ import {
   useContextMenu,
 } from "@tokiomo/components";
 import { Copy, Monitor, Pencil, Plus, Trash2 } from "lucide-react";
-import {
-  lazy,
-  type ReactNode,
-  Suspense,
-  useCallback,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
-import SshTerminalForm from "@/apps/terminal/components/SshTerminalForm";
-import {
-  api,
-  type CreateSshTerminalInput,
-  type SshTerminalOutput,
-  type UpdateSshTerminalInput,
-} from "@/generated/rust-api";
+import { lazy, Suspense, useCallback, useMemo, useRef, useState } from "react";
+import { api, type SshTerminalOutput } from "@/generated/rust-api";
 import { randomUUID } from "@/lib/uuid";
 import { useContainerWidth } from "@/shared/hooks/use-container-width";
-import { useWindowNav } from "@/system";
+import { useWindowActions, useWindowId, useWindowNav } from "@/system";
 import { useMessage } from "@/system/notifications/useMessage";
+import type { TaskMetadata } from "@/system/window/window-types";
 
 const SshTerminalWindow = lazy(
   () => import("@/apps/terminal/components/SshTerminalWindow"),
@@ -43,16 +32,9 @@ const SshTerminalWindow = lazy(
 
 // ── Types ──
 
-type Selection =
-  | { kind: "none" }
-  | { kind: "create" }
-  | { kind: "edit"; terminalId: string }
-  | { kind: "terminal"; terminalId: string };
+type Selection = { kind: "none" } | { kind: "terminal"; terminalId: string };
 
 function routeToSelection(route: string): Selection {
-  if (route === "/new") return { kind: "create" };
-  const editMatch = route.match(/^\/([^/]+)\/edit$/);
-  if (editMatch) return { kind: "edit", terminalId: editMatch[1] };
   const idMatch = route.match(/^\/([^/]+)$/);
   if (idMatch) return { kind: "terminal", terminalId: idMatch[1] };
   return { kind: "none" };
@@ -69,11 +51,13 @@ function parseSessions(v: unknown): Map<string, string> {
 
 export default function TerminalAppPage() {
   const message = useMessage();
-  const { metadata, updateMetadata, route, replace, navigate, goBack } =
-    useWindowNav();
+  const { metadata, updateMetadata, route, replace } = useWindowNav();
   const [containerRef, containerWidth] = useContainerWidth();
   const sidebarCollapsed = containerWidth > 0 && containerWidth < 720;
   const { open: openCtxMenu, contextMenu } = useContextMenu();
+
+  const windowId = useWindowId();
+  const { openModalWindow } = useWindowActions();
 
   // Derive selection from window route
   const selection = useMemo(() => routeToSelection(route), [route]);
@@ -82,10 +66,6 @@ export default function TerminalAppPage() {
 
   const [sessions, setSessionsRaw] = useState<Map<string, string>>(() =>
     parseSessions(metadata.terminalSessions),
-  );
-
-  const [duplicateFrom, setDuplicateFrom] = useState<SshTerminalOutput | null>(
-    null,
   );
 
   const setSessions = useCallback(
@@ -102,29 +82,37 @@ export default function TerminalAppPage() {
   // ── Queries & mutations ──
   const terminalsQuery = api.sshTerminal.list.useQuery();
 
-  const createMutation = api.sshTerminal.create.useMutation({
-    onSuccess: () => {
-      terminalsQuery.refetch();
-      setDuplicateFrom(null);
-      replace("/");
-      message.success("终端已创建");
-    },
-  });
-
-  const updateMutation = api.sshTerminal.update.useMutation({
-    onSuccess: () => {
-      terminalsQuery.refetch();
-      replace("/");
-      message.success("终端已更新");
-    },
-  });
-
   const deleteMutation = api.sshTerminal.delete.useMutation({
     onSuccess: () => {
       terminalsQuery.refetch();
       message.success("终端已删除");
     },
   });
+
+  // ── Modal openers ──
+
+  const openEditorModal = useCallback(
+    (opts: { terminalId?: string; duplicateId?: string } = {}) => {
+      const meta: Record<string, unknown> = {};
+      if (opts.terminalId) meta.sshTerminalId = opts.terminalId;
+      if (opts.duplicateId) meta.sshTerminalDuplicateId = opts.duplicateId;
+      openModalWindow({
+        component: () =>
+          import("@/apps/settings/admin/SshTerminalEditorWindow"),
+        parentWindowId: windowId,
+        title: opts.terminalId ? "编辑终端" : "新建终端",
+        width: 640,
+        height: 620,
+        noResize: true,
+        noMinimize: true,
+        metadata:
+          Object.keys(meta).length > 0
+            ? (meta as Record<string, unknown> as TaskMetadata)
+            : undefined,
+      });
+    },
+    [openModalWindow, windowId],
+  );
 
   // ── Handlers ──
 
@@ -156,10 +144,7 @@ export default function TerminalAppPage() {
             return next;
           });
           const cur = routeToSelection(routeRef.current);
-          if (
-            (cur.kind === "terminal" || cur.kind === "edit") &&
-            cur.terminalId === t.id
-          ) {
+          if (cur.kind === "terminal" && cur.terminalId === t.id) {
             replace("/");
           }
           return deleteMutation.mutateAsync(t.id);
@@ -176,16 +161,13 @@ export default function TerminalAppPage() {
           key: "edit",
           label: "编辑",
           icon: <Pencil size={13} />,
-          onClick: () => navigate(`/${t.id}/edit`),
+          onClick: () => openEditorModal({ terminalId: t.id }),
         },
         {
           key: "duplicate",
           label: "复制",
           icon: <Copy size={13} />,
-          onClick: () => {
-            setDuplicateFrom(t);
-            navigate("/new");
-          },
+          onClick: () => openEditorModal({ duplicateId: t.id }),
         },
         { type: "divider" },
         {
@@ -198,7 +180,7 @@ export default function TerminalAppPage() {
       ];
       openCtxMenu(e, items);
     },
-    [openCtxMenu, navigate, handleDelete],
+    [openCtxMenu, openEditorModal, handleDelete],
   );
 
   const terminals = terminalsQuery.data ?? [];
@@ -225,9 +207,7 @@ export default function TerminalAppPage() {
         collapsed={sidebarCollapsed}
         sections={[{ items: sidebarItems }]}
         activeKey={
-          selection.kind === "terminal" || selection.kind === "edit"
-            ? selection.terminalId
-            : undefined
+          selection.kind === "terminal" ? selection.terminalId : undefined
         }
         onSelect={(key) => {
           const t = terminals.find((x) => x.id === key);
@@ -238,7 +218,7 @@ export default function TerminalAppPage() {
           <button
             type="button"
             className="flex w-full cursor-pointer items-center justify-center gap-1.5 rounded-md px-2 py-1.5 text-xs font-medium text-[var(--text-tertiary)] transition-colors hover:bg-[var(--accent-subtle)] hover:text-[var(--accent)]"
-            onClick={() => navigate("/new")}
+            onClick={() => openEditorModal()}
           >
             <Plus className="h-3.5 w-3.5" />
             新建终端
@@ -254,55 +234,6 @@ export default function TerminalAppPage() {
             <Monitor className="h-8 w-8" />
             <span className="text-sm">选择终端或新建一个</span>
           </div>
-        )}
-
-        {/* Create form */}
-        {selection.kind === "create" && (
-          <FormPanel
-            title="新建终端"
-            onBack={() => {
-              setDuplicateFrom(null);
-              goBack();
-            }}
-          >
-            <SshTerminalForm
-              terminal={null}
-              defaultValues={
-                duplicateFrom
-                  ? {
-                      name: `${duplicateFrom.name} 副本`,
-                      host: duplicateFrom.host,
-                      port: duplicateFrom.port,
-                      username: duplicateFrom.username,
-                      authMethod: duplicateFrom.authMethod,
-                      startupCommand: duplicateFrom.startupCommand,
-                      notes: duplicateFrom.notes,
-                    }
-                  : undefined
-              }
-              onSubmit={(data) =>
-                createMutation.mutate(data as CreateSshTerminalInput)
-              }
-              onCancel={() => {
-                setDuplicateFrom(null);
-                goBack();
-              }}
-              isLoading={createMutation.isPending}
-            />
-          </FormPanel>
-        )}
-
-        {/* Edit form */}
-        {selection.kind === "edit" && (
-          <EditPanel
-            terminalId={selection.terminalId}
-            terminals={terminals}
-            onBack={goBack}
-            onSubmit={(data) =>
-              updateMutation.mutate(data as UpdateSshTerminalInput)
-            }
-            isLoading={updateMutation.isPending}
-          />
         )}
 
         {/* Active terminals — all mounted, visibility toggled */}
@@ -339,77 +270,5 @@ export default function TerminalAppPage() {
 
       {contextMenu}
     </div>
-  );
-}
-
-// ── Sub-components ──
-
-function FormPanel({
-  title,
-  onBack,
-  children,
-}: {
-  title: string;
-  onBack: () => void;
-  children: ReactNode;
-}) {
-  return (
-    <div className="h-full flex flex-col">
-      <div className="flex items-center gap-3 px-4 py-3 border-b border-border-subtle shrink-0">
-        <button
-          type="button"
-          onClick={onBack}
-          className="flex h-7 w-7 items-center justify-center rounded-lg text-[var(--text-secondary)] transition-colors hover:bg-[var(--accent-subtle)] hover:text-[var(--accent)] cursor-pointer"
-        >
-          ←
-        </button>
-        <h3 className="text-sm font-semibold text-[var(--text-primary)]">
-          {title}
-        </h3>
-      </div>
-      <div className="flex-1 min-h-0 overflow-y-auto px-4 py-4">
-        <div className="max-w-lg mx-auto">{children}</div>
-      </div>
-    </div>
-  );
-}
-
-function EditPanel({
-  terminalId,
-  terminals,
-  onBack,
-  onSubmit,
-  isLoading,
-}: {
-  terminalId: string;
-  terminals: SshTerminalOutput[];
-  onBack: () => void;
-  onSubmit: (data: CreateSshTerminalInput | UpdateSshTerminalInput) => void;
-  isLoading: boolean;
-}) {
-  const terminal = terminals.find((t) => t.id === terminalId) ?? null;
-  if (!terminal) {
-    return (
-      <div className="flex flex-col items-center justify-center h-full gap-3">
-        <p className="text-sm text-[var(--text-tertiary)]">终端不存在</p>
-        <button
-          type="button"
-          onClick={onBack}
-          className="text-sm text-[var(--accent)] hover:underline cursor-pointer"
-        >
-          返回
-        </button>
-      </div>
-    );
-  }
-  return (
-    <FormPanel title={`编辑 — ${terminal.name}`} onBack={onBack}>
-      <SshTerminalForm
-        terminal={terminal}
-        onSubmit={onSubmit}
-        onCancel={onBack}
-        isLoading={isLoading}
-      />
-    </FormPanel>
   );
 }
