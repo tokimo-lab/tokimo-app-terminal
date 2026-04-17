@@ -3,7 +3,6 @@
  * Sub-tabs: 容器 / 镜像 / 网络 / 存储卷 / 监控.
  * All presented in table format with full CRUD actions.
  */
-import { LoadingOutlined } from "@tokiomo/components";
 import {
   Activity,
   ArrowLeft,
@@ -12,7 +11,6 @@ import {
   HardDrive,
   Image,
   Network,
-  RefreshCw,
   ScrollText,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -28,6 +26,7 @@ import DockerImageTable from "./DockerImageTable";
 import DockerInspectView from "./DockerInspectView";
 import DockerNetworkTable from "./DockerNetworkTable";
 import DockerVolumeTable from "./DockerVolumeTable";
+import { type SshColumn, SshDataTable } from "./SshDataTable";
 
 interface SshDockerPanelProps {
   terminalId: string;
@@ -149,21 +148,6 @@ export default function SshDockerPanel({
     images.length,
     networks.length,
     volumes.length,
-    fetchImages,
-    fetchNetworks,
-    fetchVolumes,
-    fetchStats,
-  ]);
-
-  const refreshCurrent = useCallback(() => {
-    if (subTab === "containers") fetchContainers();
-    else if (subTab === "images") fetchImages();
-    else if (subTab === "networks") fetchNetworks();
-    else if (subTab === "volumes") fetchVolumes();
-    else fetchStats();
-  }, [
-    subTab,
-    fetchContainers,
     fetchImages,
     fetchNetworks,
     fetchVolumes,
@@ -294,29 +278,15 @@ export default function SshDockerPanel({
             count={0}
           />
         </div>
-        <div className="flex items-center gap-1">
-          <button
-            type="button"
-            onClick={handleSystemPrune}
-            className="flex items-center gap-0.5 text-[10px] text-fg-muted hover:text-amber-400 transition-colors px-1"
-            title="系统清理 (docker system prune)"
-          >
-            <Eraser className="h-2.5 w-2.5" />
-            清理
-          </button>
-          <button
-            type="button"
-            onClick={refreshCurrent}
-            className="p-0.5 text-fg-muted hover:text-fg-secondary transition-colors"
-            title="刷新"
-          >
-            {loading ? (
-              <LoadingOutlined className="h-3 w-3" />
-            ) : (
-              <RefreshCw className="h-3 w-3" />
-            )}
-          </button>
-        </div>
+        <button
+          type="button"
+          onClick={handleSystemPrune}
+          className="flex items-center gap-0.5 text-[11px] text-fg-muted hover:text-amber-400 transition-colors px-1 cursor-pointer"
+          title="系统清理 (docker system prune)"
+        >
+          <Eraser className="h-3 w-3" />
+          清理
+        </button>
       </div>
 
       {/* Prune feedback */}
@@ -327,7 +297,7 @@ export default function SshDockerPanel({
       )}
 
       {/* Table content */}
-      <div className="flex-1 overflow-y-auto overflow-x-auto">
+      <div className="flex-1 min-h-0 overflow-hidden">
         {subTab === "containers" && (
           <DockerContainerTable
             terminalId={terminalId}
@@ -363,7 +333,11 @@ export default function SshDockerPanel({
           />
         )}
         {subTab === "stats" && (
-          <DockerStatsTable stats={stats} loading={loading} />
+          <DockerStatsTable
+            stats={stats}
+            loading={loading}
+            onRefresh={fetchStats}
+          />
         )}
       </div>
     </div>
@@ -406,63 +380,92 @@ function TabPill({
 function DockerStatsTable({
   stats,
   loading,
+  onRefresh,
 }: {
   stats: DockerStatsEntry[];
   loading: boolean;
+  onRefresh: () => void;
 }) {
-  if (loading && stats.length === 0) {
-    return <div className="text-fg-muted text-xs px-3 py-2">加载中...</div>;
-  }
-  if (stats.length === 0) {
-    return (
-      <div className="text-fg-muted text-xs px-3 py-2">无运行中的容器</div>
-    );
-  }
+  const columns = useMemo<SshColumn<DockerStatsEntry>[]>(
+    () => [
+      {
+        key: "name",
+        header: "CONTAINER",
+        width: "minmax(120px,1.2fr)",
+        sortable: true,
+        compare: (a, b) => a.name.localeCompare(b.name),
+        cellClassName: "px-2 truncate text-fg-primary",
+        render: (s) => s.name,
+      },
+      {
+        key: "cpu",
+        header: "CPU %",
+        width: "80px",
+        align: "right",
+        sortable: true,
+        compare: (a, b) =>
+          Number.parseFloat(a.cpuPercent) - Number.parseFloat(b.cpuPercent),
+        render: (s) => <CpuBadge value={s.cpuPercent} />,
+      },
+      {
+        key: "memUsage",
+        header: "MEM USAGE",
+        width: "minmax(120px,1fr)",
+        align: "right",
+        cellClassName: "px-2 text-right tabular-nums text-fg-muted",
+        render: (s) => s.memUsage,
+      },
+      {
+        key: "mem",
+        header: "MEM %",
+        width: "80px",
+        align: "right",
+        sortable: true,
+        compare: (a, b) =>
+          Number.parseFloat(a.memPercent) - Number.parseFloat(b.memPercent),
+        render: (s) => <MemBadge value={s.memPercent} />,
+      },
+      {
+        key: "netIo",
+        header: "NET I/O",
+        width: "minmax(100px,1fr)",
+        align: "right",
+        cellClassName: "px-2 text-right tabular-nums text-fg-muted",
+        render: (s) => s.netIo,
+      },
+      {
+        key: "blockIo",
+        header: "BLOCK I/O",
+        width: "minmax(100px,1fr)",
+        align: "right",
+        cellClassName: "px-2 text-right tabular-nums text-fg-muted",
+        render: (s) => s.blockIo,
+      },
+      {
+        key: "pids",
+        header: "PIDS",
+        width: "70px",
+        align: "right",
+        sortable: true,
+        compare: (a, b) => Number(a.pids) - Number(b.pids),
+        cellClassName: "px-2 text-right tabular-nums text-fg-muted",
+        render: (s) => s.pids,
+      },
+    ],
+    [],
+  );
 
   return (
-    <table className="w-full border-collapse text-xs font-mono">
-      <thead className="sticky top-0 bg-surface-elevated z-10">
-        <tr className="text-fg-secondary">
-          <th className="px-2 py-1 text-left font-normal">CONTAINER</th>
-          <th className="px-2 py-1 text-right font-normal">CPU %</th>
-          <th className="px-2 py-1 text-right font-normal">MEM USAGE</th>
-          <th className="px-2 py-1 text-right font-normal">MEM %</th>
-          <th className="px-2 py-1 text-right font-normal">NET I/O</th>
-          <th className="px-2 py-1 text-right font-normal">BLOCK I/O</th>
-          <th className="px-2 py-1 text-right font-normal">PIDS</th>
-        </tr>
-      </thead>
-      <tbody>
-        {stats.map((s) => (
-          <tr
-            key={s.containerId}
-            className="text-fg-secondary hover:bg-black/[0.04]/50"
-          >
-            <td className="px-2 py-0.5 text-fg-primary truncate max-w-32">
-              {s.name}
-            </td>
-            <td className="px-2 py-0.5 text-right tabular-nums">
-              <CpuBadge value={s.cpuPercent} />
-            </td>
-            <td className="px-2 py-0.5 text-right tabular-nums text-fg-muted">
-              {s.memUsage}
-            </td>
-            <td className="px-2 py-0.5 text-right tabular-nums">
-              <MemBadge value={s.memPercent} />
-            </td>
-            <td className="px-2 py-0.5 text-right tabular-nums text-fg-muted text-[10px]">
-              {s.netIo}
-            </td>
-            <td className="px-2 py-0.5 text-right tabular-nums text-fg-muted text-[10px]">
-              {s.blockIo}
-            </td>
-            <td className="px-2 py-0.5 text-right tabular-nums text-fg-muted">
-              {s.pids}
-            </td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
+    <SshDataTable
+      items={stats}
+      columns={columns}
+      getRowKey={(s) => s.containerId}
+      loading={loading}
+      onRefresh={onRefresh}
+      defaultSortKey="cpu"
+      defaultSortDir="desc"
+      emptyText="无运行中的容器"
+    />
   );
 }
 

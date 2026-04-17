@@ -1,13 +1,13 @@
 /**
  * Docker networks table for SSH Docker panel.
- * Lists networks with name, driver, scope, subnet, and gateway.
- * Right-click context menu for network actions (remove).
+ * Virtualized via shared SshDataTable.
  */
 import { useContextMenu } from "@tokiomo/components";
 import { Trash2 } from "lucide-react";
-import { useCallback } from "react";
+import { useCallback, useMemo } from "react";
 import { api } from "@/generated/rust-api";
 import type { DockerNetworkEntry } from "@/generated/rust-types/DockerNetworkEntry";
+import { type SshColumn, SshDataTable } from "./SshDataTable";
 
 /** Built-in networks that cannot be removed */
 const PROTECTED_NETWORKS = new Set(["bridge", "host", "none"]);
@@ -63,69 +63,98 @@ export default function DockerNetworkTable({
     [openCtxMenu, handleRemove],
   );
 
-  if (loading && networks.length === 0) {
-    return <div className="text-fg-muted text-xs px-3 py-2">加载中...</div>;
-  }
-  if (networks.length === 0) {
-    return <div className="text-fg-muted text-xs px-3 py-2">无网络</div>;
-  }
+  const columns = useMemo<SshColumn<DockerNetworkEntry>[]>(
+    () => [
+      {
+        key: "id",
+        header: "NETWORK ID",
+        width: "110px",
+        cellClassName: "px-2 truncate text-fg-muted",
+        render: (n) => n.id.slice(0, 12),
+      },
+      {
+        key: "name",
+        header: "NAME",
+        width: "minmax(120px,1fr)",
+        sortable: true,
+        compare: (a, b) => a.name.localeCompare(b.name),
+        cellClassName: "px-2 truncate text-fg-primary",
+        render: (n) => n.name,
+      },
+      {
+        key: "driver",
+        header: "DRIVER",
+        width: "100px",
+        sortable: true,
+        compare: (a, b) => a.driver.localeCompare(b.driver),
+        cellClassName: "px-2 truncate text-fg-muted",
+        render: (n) => n.driver,
+      },
+      {
+        key: "scope",
+        header: "SCOPE",
+        width: "90px",
+        cellClassName: "px-2 truncate text-fg-muted",
+        render: (n) => n.scope,
+      },
+      {
+        key: "subnet",
+        header: "SUBNET",
+        width: "minmax(120px,1fr)",
+        cellClassName: "px-2 truncate text-fg-muted",
+        render: (n) => n.ipamSubnet || "-",
+      },
+      {
+        key: "gateway",
+        header: "GATEWAY",
+        width: "minmax(120px,1fr)",
+        cellClassName: "px-2 truncate text-fg-muted",
+        render: (n) => n.ipamGateway || "-",
+      },
+      {
+        key: "actions",
+        header: "操作",
+        width: "56px",
+        align: "right",
+        cellClassName: "px-2 flex items-center justify-end",
+        render: (n) =>
+          PROTECTED_NETWORKS.has(n.name) ? null : (
+            <button
+              type="button"
+              title="删除网络"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleRemove(n.id);
+              }}
+              className="p-0.5 text-fg-muted hover:text-red-400 transition-colors cursor-pointer"
+            >
+              <Trash2 className="h-2.5 w-2.5" />
+            </button>
+          ),
+      },
+    ],
+    [handleRemove],
+  );
 
   return (
-    <div className="relative">
-      <table className="w-full border-collapse text-xs font-mono">
-        <thead className="sticky top-0 bg-zinc-900/95 z-10">
-          <tr className="text-fg-muted">
-            <th className="px-2 py-1 text-left font-normal">NETWORK ID</th>
-            <th className="px-2 py-1 text-left font-normal">NAME</th>
-            <th className="px-2 py-1 text-left font-normal">DRIVER</th>
-            <th className="px-2 py-1 text-left font-normal">SCOPE</th>
-            <th className="px-2 py-1 text-left font-normal">SUBNET</th>
-            <th className="px-2 py-1 text-left font-normal">GATEWAY</th>
-            <th className="px-2 py-1 text-right font-normal w-12">操作</th>
-          </tr>
-        </thead>
-        <tbody>
-          {networks.map((n) => {
-            const isProtected = PROTECTED_NETWORKS.has(n.name);
-            return (
-              <tr
-                key={n.id}
-                className="text-fg-muted hover:bg-zinc-800/50 cursor-default"
-                onContextMenu={(e) => handleContextMenu(e, n)}
-              >
-                <td className="px-2 py-0.5 text-fg-muted text-[10px]">
-                  {n.id.slice(0, 12)}
-                </td>
-                <td className="px-2 py-0.5 text-zinc-200">{n.name}</td>
-                <td className="px-2 py-0.5 text-fg-muted">{n.driver}</td>
-                <td className="px-2 py-0.5 text-fg-muted">{n.scope}</td>
-                <td className="px-2 py-0.5 text-fg-muted">
-                  {n.ipamSubnet || "-"}
-                </td>
-                <td className="px-2 py-0.5 text-fg-muted">
-                  {n.ipamGateway || "-"}
-                </td>
-                <td className="px-2 py-0.5 text-right">
-                  {!isProtected && (
-                    <button
-                      type="button"
-                      title="删除网络"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleRemove(n.id);
-                      }}
-                      className="p-0.5 text-fg-muted hover:text-red-400 transition-colors"
-                    >
-                      <Trash2 className="h-2.5 w-2.5" />
-                    </button>
-                  )}
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
+    <>
+      <SshDataTable
+        items={networks}
+        columns={columns}
+        getRowKey={(n) => n.id}
+        loading={loading}
+        onRefresh={onRefresh}
+        searchable
+        searchPlaceholder="搜索网络"
+        filterFn={(n, q) =>
+          n.name.toLowerCase().includes(q) ||
+          n.driver.toLowerCase().includes(q) ||
+          (n.ipamSubnet || "").toLowerCase().includes(q)
+        }
+        emptyText="无网络"
+        onRowContextMenu={handleContextMenu}
+      />
       {contextMenu}
-    </div>
+    </>
   );
 }

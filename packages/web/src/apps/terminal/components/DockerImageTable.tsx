@@ -1,13 +1,13 @@
 /**
  * Docker images table for SSH Docker panel.
- * Lists images with repository, tag, ID, size, and created info.
- * Right-click context menu for image actions (remove).
+ * Virtualized via shared SshDataTable.
  */
 import { useContextMenu } from "@tokiomo/components";
 import { Eraser, Trash2 } from "lucide-react";
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { api } from "@/generated/rust-api";
 import type { DockerImageEntry } from "@/generated/rust-types/DockerImageEntry";
+import { type SshColumn, SshDataTable } from "./SshDataTable";
 
 interface DockerImageTableProps {
   terminalId: string;
@@ -70,77 +70,110 @@ export default function DockerImageTable({
     [openCtxMenu, handleRemove],
   );
 
-  if (loading && images.length === 0) {
-    return <div className="text-fg-muted text-xs px-3 py-2">加载中...</div>;
-  }
-  if (images.length === 0) {
-    return <div className="text-fg-muted text-xs px-3 py-2">无镜像</div>;
-  }
+  const columns = useMemo<SshColumn<DockerImageEntry>[]>(
+    () => [
+      {
+        key: "repository",
+        header: "REPOSITORY",
+        width: "minmax(140px,1.5fr)",
+        sortable: true,
+        compare: (a, b) => a.repository.localeCompare(b.repository),
+        cellClassName: "px-2 truncate text-fg-primary",
+        render: (i) => i.repository,
+      },
+      {
+        key: "tag",
+        header: "TAG",
+        width: "minmax(80px,1fr)",
+        sortable: true,
+        compare: (a, b) => a.tag.localeCompare(b.tag),
+        cellClassName: "px-2 truncate text-fg-muted",
+        render: (i) => i.tag,
+      },
+      {
+        key: "id",
+        header: "IMAGE ID",
+        width: "110px",
+        cellClassName: "px-2 truncate text-fg-muted",
+        render: (i) => i.id.slice(0, 12),
+      },
+      {
+        key: "size",
+        header: "SIZE",
+        width: "90px",
+        align: "right",
+        sortable: true,
+        compare: (a, b) => a.size.localeCompare(b.size),
+        cellClassName: "px-2 text-right tabular-nums text-fg-muted",
+        render: (i) => i.size,
+      },
+      {
+        key: "created",
+        header: "CREATED",
+        width: "minmax(100px,1fr)",
+        cellClassName: "px-2 truncate text-fg-muted",
+        render: (i) => i.created,
+      },
+      {
+        key: "actions",
+        header: "操作",
+        width: "56px",
+        align: "right",
+        cellClassName: "px-2 flex items-center justify-end",
+        render: (i) => (
+          <button
+            type="button"
+            title="删除镜像"
+            onClick={(e) => {
+              e.stopPropagation();
+              handleRemove(i.id);
+            }}
+            className="p-0.5 text-fg-muted hover:text-red-400 transition-colors cursor-pointer"
+          >
+            <Trash2 className="h-2.5 w-2.5" />
+          </button>
+        ),
+      },
+    ],
+    [handleRemove],
+  );
 
   return (
-    <div className="relative">
+    <div className="flex flex-col h-full overflow-hidden">
       {pruneMsg && (
-        <div className="px-3 py-1 text-[11px] text-green-400 bg-green-400/5 border-b border-zinc-800/60">
+        <div className="px-3 py-1 text-[11px] text-green-400 bg-green-400/5 border-b border-black/[0.08] dark:border-zinc-800/60 shrink-0">
           {pruneMsg}
         </div>
       )}
-      <div className="flex items-center justify-end px-2 py-0.5 border-b border-zinc-800/40">
-        <button
-          type="button"
-          onClick={handlePrune}
-          className="flex items-center gap-1 text-[10px] text-fg-muted hover:text-amber-400 transition-colors"
-          title="清理未使用镜像"
-        >
-          <Eraser className="h-2.5 w-2.5" />
-          清理
-        </button>
-      </div>
-      <table className="w-full border-collapse text-xs font-mono">
-        <thead className="sticky top-0 bg-zinc-900/95 z-10">
-          <tr className="text-fg-muted">
-            <th className="px-2 py-1 text-left font-normal">REPOSITORY</th>
-            <th className="px-2 py-1 text-left font-normal">TAG</th>
-            <th className="px-2 py-1 text-left font-normal">IMAGE ID</th>
-            <th className="px-2 py-1 text-right font-normal">SIZE</th>
-            <th className="px-2 py-1 text-left font-normal">CREATED</th>
-            <th className="px-2 py-1 text-right font-normal w-12">操作</th>
-          </tr>
-        </thead>
-        <tbody>
-          {images.map((img) => (
-            <tr
-              key={`${img.id}-${img.tag}`}
-              className="text-fg-muted hover:bg-zinc-800/50 cursor-default"
-              onContextMenu={(e) => handleContextMenu(e, img)}
+      <div className="flex-1 min-h-0">
+        <SshDataTable
+          items={images}
+          columns={columns}
+          getRowKey={(i) => `${i.id}-${i.tag}`}
+          loading={loading}
+          onRefresh={onRefresh}
+          searchable
+          searchPlaceholder="搜索镜像"
+          filterFn={(i, q) =>
+            i.repository.toLowerCase().includes(q) ||
+            i.tag.toLowerCase().includes(q) ||
+            i.id.toLowerCase().includes(q)
+          }
+          toolbarRight={
+            <button
+              type="button"
+              onClick={handlePrune}
+              className="flex items-center gap-1 text-xs text-fg-muted hover:text-amber-400 transition-colors cursor-pointer px-1"
+              title="清理未使用镜像"
             >
-              <td className="px-2 py-0.5 truncate max-w-40">
-                {img.repository}
-              </td>
-              <td className="px-2 py-0.5 text-fg-muted">{img.tag}</td>
-              <td className="px-2 py-0.5 text-fg-muted text-[10px]">
-                {img.id.slice(0, 12)}
-              </td>
-              <td className="px-2 py-0.5 text-right tabular-nums text-fg-muted">
-                {img.size}
-              </td>
-              <td className="px-2 py-0.5 text-fg-muted">{img.created}</td>
-              <td className="px-2 py-0.5 text-right">
-                <button
-                  type="button"
-                  title="删除镜像"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleRemove(img.id);
-                  }}
-                  className="p-0.5 text-fg-muted hover:text-red-400 transition-colors"
-                >
-                  <Trash2 className="h-2.5 w-2.5" />
-                </button>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+              <Eraser className="h-3 w-3" />
+              清理
+            </button>
+          }
+          emptyText="无镜像"
+          onRowContextMenu={handleContextMenu}
+        />
+      </div>
       {contextMenu}
     </div>
   );

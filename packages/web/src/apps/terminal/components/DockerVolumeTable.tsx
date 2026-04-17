@@ -1,13 +1,13 @@
 /**
  * Docker volumes table for SSH Docker panel.
- * Lists volumes with name, driver, mountpoint, scope, created, size.
- * Right-click context menu for volume actions (remove).
+ * Virtualized via shared SshDataTable.
  */
 import { useContextMenu } from "@tokiomo/components";
 import { Trash2 } from "lucide-react";
-import { useCallback } from "react";
+import { useCallback, useMemo } from "react";
 import { api } from "@/generated/rust-api";
 import type { DockerVolumeEntry } from "@/generated/rust-types/DockerVolumeEntry";
+import { type SshColumn, SshDataTable } from "./SshDataTable";
 
 interface DockerVolumeTableProps {
   terminalId: string;
@@ -55,64 +55,98 @@ export default function DockerVolumeTable({
     [openCtxMenu, handleRemove],
   );
 
-  if (loading && volumes.length === 0) {
-    return <div className="text-fg-muted text-xs px-3 py-2">加载中...</div>;
-  }
-  if (volumes.length === 0) {
-    return <div className="text-fg-muted text-xs px-3 py-2">无存储卷</div>;
-  }
+  const columns = useMemo<SshColumn<DockerVolumeEntry>[]>(
+    () => [
+      {
+        key: "name",
+        header: "NAME",
+        width: "minmax(140px,1.2fr)",
+        sortable: true,
+        compare: (a, b) => a.name.localeCompare(b.name),
+        cellClassName: "px-2 truncate text-fg-primary",
+        render: (v) => v.name,
+      },
+      {
+        key: "driver",
+        header: "DRIVER",
+        width: "90px",
+        sortable: true,
+        compare: (a, b) => a.driver.localeCompare(b.driver),
+        cellClassName: "px-2 truncate text-fg-muted",
+        render: (v) => v.driver,
+      },
+      {
+        key: "mountpoint",
+        header: "MOUNTPOINT",
+        width: "minmax(160px,1.5fr)",
+        cellClassName: "px-2 truncate text-fg-muted",
+        render: (v) => v.mountpoint,
+      },
+      {
+        key: "scope",
+        header: "SCOPE",
+        width: "90px",
+        cellClassName: "px-2 truncate text-fg-muted",
+        render: (v) => v.scope,
+      },
+      {
+        key: "size",
+        header: "SIZE",
+        width: "90px",
+        align: "right",
+        cellClassName: "px-2 text-right tabular-nums text-fg-muted",
+        render: (v) => v.size || "-",
+      },
+      {
+        key: "created",
+        header: "CREATED",
+        width: "minmax(100px,1fr)",
+        cellClassName: "px-2 truncate text-fg-muted",
+        render: (v) => v.created,
+      },
+      {
+        key: "actions",
+        header: "操作",
+        width: "56px",
+        align: "right",
+        cellClassName: "px-2 flex items-center justify-end",
+        render: (v) => (
+          <button
+            type="button"
+            title="删除卷"
+            onClick={(e) => {
+              e.stopPropagation();
+              handleRemove(v.name);
+            }}
+            className="p-0.5 text-fg-muted hover:text-red-400 transition-colors cursor-pointer"
+          >
+            <Trash2 className="h-2.5 w-2.5" />
+          </button>
+        ),
+      },
+    ],
+    [handleRemove],
+  );
 
   return (
-    <div className="relative">
-      <table className="w-full border-collapse text-xs font-mono">
-        <thead className="sticky top-0 bg-zinc-900/95 z-10">
-          <tr className="text-fg-muted">
-            <th className="px-2 py-1 text-left font-normal">NAME</th>
-            <th className="px-2 py-1 text-left font-normal">DRIVER</th>
-            <th className="px-2 py-1 text-left font-normal">MOUNTPOINT</th>
-            <th className="px-2 py-1 text-left font-normal">SCOPE</th>
-            <th className="px-2 py-1 text-right font-normal">SIZE</th>
-            <th className="px-2 py-1 text-left font-normal">CREATED</th>
-            <th className="px-2 py-1 text-right font-normal w-12">操作</th>
-          </tr>
-        </thead>
-        <tbody>
-          {volumes.map((v) => (
-            <tr
-              key={v.name}
-              className="text-fg-muted hover:bg-zinc-800/50 cursor-default"
-              onContextMenu={(e) => handleContextMenu(e, v)}
-            >
-              <td className="px-2 py-0.5 text-zinc-200 truncate max-w-40">
-                {v.name.length > 20 ? `${v.name.slice(0, 20)}…` : v.name}
-              </td>
-              <td className="px-2 py-0.5 text-fg-muted">{v.driver}</td>
-              <td className="px-2 py-0.5 text-fg-muted truncate max-w-48 text-[10px]">
-                {v.mountpoint}
-              </td>
-              <td className="px-2 py-0.5 text-fg-muted">{v.scope}</td>
-              <td className="px-2 py-0.5 text-right tabular-nums text-fg-muted">
-                {v.size || "-"}
-              </td>
-              <td className="px-2 py-0.5 text-fg-muted">{v.created}</td>
-              <td className="px-2 py-0.5 text-right">
-                <button
-                  type="button"
-                  title="删除卷"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleRemove(v.name);
-                  }}
-                  className="p-0.5 text-fg-muted hover:text-red-400 transition-colors"
-                >
-                  <Trash2 className="h-2.5 w-2.5" />
-                </button>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+    <>
+      <SshDataTable
+        items={volumes}
+        columns={columns}
+        getRowKey={(v) => v.name}
+        loading={loading}
+        onRefresh={onRefresh}
+        searchable
+        searchPlaceholder="搜索存储卷"
+        filterFn={(v, q) =>
+          v.name.toLowerCase().includes(q) ||
+          v.driver.toLowerCase().includes(q) ||
+          v.mountpoint.toLowerCase().includes(q)
+        }
+        emptyText="无存储卷"
+        onRowContextMenu={handleContextMenu}
+      />
       {contextMenu}
-    </div>
+    </>
   );
 }

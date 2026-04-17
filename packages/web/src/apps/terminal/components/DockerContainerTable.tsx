@@ -1,7 +1,6 @@
 /**
  * Docker containers table for SSH Docker panel.
- * Table with status, name, image, ports, status text, and action buttons.
- * Right-click context menu for container actions.
+ * Virtualized via shared SshDataTable. Right-click context menu + per-row action buttons.
  */
 import { useContextMenu } from "@tokiomo/components";
 import {
@@ -18,9 +17,10 @@ import {
   Square,
   Trash2,
 } from "lucide-react";
-import { useCallback } from "react";
+import { useCallback, useMemo } from "react";
 import { api } from "@/generated/rust-api";
 import type { DockerContainerEntry } from "@/generated/rust-types/DockerContainerEntry";
+import { type SshColumn, SshDataTable } from "./SshDataTable";
 
 interface DockerContainerTableProps {
   terminalId: string;
@@ -157,134 +157,140 @@ export default function DockerContainerTable({
     [openCtxMenu, doAction, onViewLogs, onInspect],
   );
 
-  if (loading && containers.length === 0) {
-    return <div className="text-fg-muted text-xs px-3 py-2">加载中...</div>;
-  }
-  if (containers.length === 0) {
-    return <div className="text-fg-muted text-xs px-3 py-2">无容器</div>;
-  }
+  const columns = useMemo<SshColumn<DockerContainerEntry>[]>(
+    () => [
+      {
+        key: "state",
+        header: "",
+        width: "28px",
+        cellClassName: "px-2 flex items-center",
+        render: (c) =>
+          stateIcons[c.state] || <Box className="h-3 w-3 text-fg-muted" />,
+      },
+      {
+        key: "name",
+        header: "NAME",
+        width: "minmax(120px,1fr)",
+        sortable: true,
+        compare: (a, b) => a.name.localeCompare(b.name),
+        cellClassName: "px-2 truncate text-fg-primary",
+        render: (c) => c.name,
+      },
+      {
+        key: "image",
+        header: "IMAGE",
+        width: "minmax(140px,1.2fr)",
+        sortable: true,
+        compare: (a, b) => a.image.localeCompare(b.image),
+        cellClassName: "px-2 truncate font-mono text-fg-muted",
+        render: (c) => c.image,
+      },
+      {
+        key: "status",
+        header: "STATUS",
+        width: "minmax(120px,1fr)",
+        sortable: true,
+        compare: (a, b) => a.status.localeCompare(b.status),
+        render: (c) => (
+          <span
+            className={`truncate ${
+              c.state === "running"
+                ? "text-green-400"
+                : c.state === "paused"
+                  ? "text-amber-400"
+                  : "text-fg-muted"
+            }`}
+          >
+            {c.status}
+          </span>
+        ),
+      },
+      {
+        key: "ports",
+        header: "PORTS",
+        width: "minmax(120px,1fr)",
+        cellClassName: "px-2 truncate font-mono text-fg-muted",
+        render: (c) => c.ports || "-",
+      },
+      {
+        key: "actions",
+        header: "操作",
+        width: "140px",
+        align: "right",
+        cellClassName: "px-2 flex items-center justify-end gap-0.5",
+        render: (c) => {
+          const isRunning = c.state === "running";
+          const isPaused = c.state === "paused";
+          const isStopped =
+            c.state === "exited" || c.state === "dead" || c.state === "created";
+          return (
+            <>
+              {isStopped && (
+                <Btn title="启动" onClick={() => doAction(c.name, "start")}>
+                  <Play className="h-2.5 w-2.5" />
+                </Btn>
+              )}
+              {isRunning && (
+                <>
+                  <Btn title="停止" onClick={() => doAction(c.name, "stop")}>
+                    <Square className="h-2.5 w-2.5" />
+                  </Btn>
+                  <Btn title="重启" onClick={() => doAction(c.name, "restart")}>
+                    <RotateCw className="h-2.5 w-2.5" />
+                  </Btn>
+                  <Btn title="暂停" onClick={() => doAction(c.name, "pause")}>
+                    <Pause className="h-2.5 w-2.5" />
+                  </Btn>
+                </>
+              )}
+              {isPaused && (
+                <Btn title="恢复" onClick={() => doAction(c.name, "unpause")}>
+                  <Play className="h-2.5 w-2.5" />
+                </Btn>
+              )}
+              <Btn title="日志" onClick={() => onViewLogs(c.name, c.name)}>
+                <ScrollText className="h-2.5 w-2.5" />
+              </Btn>
+              <Btn title="详情" onClick={() => onInspect(c.name)}>
+                <Info className="h-2.5 w-2.5" />
+              </Btn>
+              {isStopped && (
+                <Btn
+                  title="删除"
+                  onClick={() => doAction(c.name, "rm")}
+                  className="hover:text-red-400"
+                >
+                  <Trash2 className="h-2.5 w-2.5" />
+                </Btn>
+              )}
+            </>
+          );
+        },
+      },
+    ],
+    [doAction, onViewLogs, onInspect],
+  );
 
   return (
-    <div className="relative">
-      <table className="w-full border-collapse text-xs">
-        <thead className="sticky top-0 bg-zinc-900/95 z-10">
-          <tr className="text-fg-muted">
-            <th className="px-2 py-1 text-left font-normal w-6" />
-            <th className="px-2 py-1 text-left font-normal">NAME</th>
-            <th className="px-2 py-1 text-left font-normal">IMAGE</th>
-            <th className="px-2 py-1 text-left font-normal">STATUS</th>
-            <th className="px-2 py-1 text-left font-normal">PORTS</th>
-            <th className="px-2 py-1 text-right font-normal w-28">操作</th>
-          </tr>
-        </thead>
-        <tbody>
-          {containers.map((c) => {
-            const isRunning = c.state === "running";
-            const isPaused = c.state === "paused";
-            const isStopped =
-              c.state === "exited" ||
-              c.state === "dead" ||
-              c.state === "created";
-            return (
-              <tr
-                key={c.id}
-                className="text-fg-muted hover:bg-zinc-800/50 cursor-default"
-                onContextMenu={(e) => handleContextMenu(e, c)}
-              >
-                <td className="px-2 py-0.5">
-                  {stateIcons[c.state] || (
-                    <Box className="h-3 w-3 text-fg-muted" />
-                  )}
-                </td>
-                <td className="px-2 py-0.5 text-zinc-200 font-medium truncate max-w-32">
-                  {c.name}
-                </td>
-                <td className="px-2 py-0.5 text-fg-muted truncate max-w-40 font-mono">
-                  {c.image}
-                </td>
-                <td className="px-2 py-0.5">
-                  <span
-                    className={
-                      isRunning
-                        ? "text-green-400"
-                        : isPaused
-                          ? "text-amber-400"
-                          : "text-fg-muted"
-                    }
-                  >
-                    {c.status}
-                  </span>
-                </td>
-                <td className="px-2 py-0.5 text-fg-muted truncate max-w-40 text-[10px] font-mono">
-                  {c.ports || "-"}
-                </td>
-                <td className="px-2 py-0.5 text-right">
-                  <div className="flex items-center justify-end gap-0.5">
-                    {isStopped && (
-                      <Btn
-                        title="启动"
-                        onClick={() => doAction(c.name, "start")}
-                      >
-                        <Play className="h-2.5 w-2.5" />
-                      </Btn>
-                    )}
-                    {isRunning && (
-                      <>
-                        <Btn
-                          title="停止"
-                          onClick={() => doAction(c.name, "stop")}
-                        >
-                          <Square className="h-2.5 w-2.5" />
-                        </Btn>
-                        <Btn
-                          title="重启"
-                          onClick={() => doAction(c.name, "restart")}
-                        >
-                          <RotateCw className="h-2.5 w-2.5" />
-                        </Btn>
-                        <Btn
-                          title="暂停"
-                          onClick={() => doAction(c.name, "pause")}
-                        >
-                          <Pause className="h-2.5 w-2.5" />
-                        </Btn>
-                      </>
-                    )}
-                    {isPaused && (
-                      <Btn
-                        title="恢复"
-                        onClick={() => doAction(c.name, "unpause")}
-                      >
-                        <Play className="h-2.5 w-2.5" />
-                      </Btn>
-                    )}
-                    <Btn
-                      title="日志"
-                      onClick={() => onViewLogs(c.name, c.name)}
-                    >
-                      <ScrollText className="h-2.5 w-2.5" />
-                    </Btn>
-                    <Btn title="详情" onClick={() => onInspect(c.name)}>
-                      <Info className="h-2.5 w-2.5" />
-                    </Btn>
-                    {isStopped && (
-                      <Btn
-                        title="删除"
-                        onClick={() => doAction(c.name, "rm")}
-                        className="hover:text-red-400"
-                      >
-                        <Trash2 className="h-2.5 w-2.5" />
-                      </Btn>
-                    )}
-                  </div>
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
+    <>
+      <SshDataTable
+        items={containers}
+        columns={columns}
+        getRowKey={(c) => c.id}
+        loading={loading}
+        onRefresh={onRefresh}
+        searchable
+        searchPlaceholder="搜索容器名 / 镜像"
+        filterFn={(c, q) =>
+          c.name.toLowerCase().includes(q) ||
+          c.image.toLowerCase().includes(q) ||
+          c.status.toLowerCase().includes(q)
+        }
+        emptyText="无容器"
+        onRowContextMenu={handleContextMenu}
+      />
       {contextMenu}
-    </div>
+    </>
   );
 }
 
@@ -307,7 +313,7 @@ function Btn({
         e.stopPropagation();
         onClick();
       }}
-      className={`p-0.5 text-fg-muted hover:text-fg-primary transition-colors ${className}`}
+      className={`p-0.5 text-fg-muted hover:text-fg-primary transition-colors cursor-pointer ${className}`}
     >
       {children}
     </button>
