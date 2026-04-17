@@ -180,31 +180,33 @@ export function SshDataTable<T>({
                 countLabel?.(visible.length, items.length, filtered)}
             </div>
           )}
-          {searchable ? (
-            <div className="flex-1 min-w-0 max-w-64">
-              <Input
-                size="small"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder={searchPlaceholder}
-                prefix={<Search />}
-                allowClear
-              />
-            </div>
-          ) : (
-            <div className="flex-1" />
-          )}
-          {toolbarRight}
-          {onRefresh && (
-            <button
-              type="button"
-              onClick={onRefresh}
-              className="p-0.5 text-fg-muted hover:text-fg-secondary transition-colors cursor-pointer"
-              title="刷新"
-            >
-              <RefreshCw className={cn("h-3 w-3", loading && "animate-spin")} />
-            </button>
-          )}
+          <div className="flex-1 min-w-0 flex items-center justify-end gap-2">
+            {searchable && (
+              <div className="w-64 min-w-0">
+                <Input
+                  size="small"
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder={searchPlaceholder}
+                  prefix={<Search />}
+                  allowClear
+                />
+              </div>
+            )}
+            {toolbarRight}
+            {onRefresh && (
+              <button
+                type="button"
+                onClick={onRefresh}
+                className="p-0.5 text-fg-muted hover:text-fg-secondary transition-colors cursor-pointer"
+                title="刷新"
+              >
+                <RefreshCw
+                  className={cn("h-3 w-3", loading && "animate-spin")}
+                />
+              </button>
+            )}
+          </div>
         </div>
       )}
 
