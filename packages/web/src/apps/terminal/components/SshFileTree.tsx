@@ -182,6 +182,12 @@ export default function SshFileTree({
   const [draggingPaths, setDraggingPaths] = useState<Set<string>>(new Set());
   const [isDragOver, setIsDragOver] = useState(false);
   const dragEnterCount = useRef(0);
+  const isInternalDragRef = useRef(false);
+  const [subColumnRefreshKey, setSubColumnRefreshKey] = useState(0);
+  const bumpSubColumnRefresh = useCallback(
+    () => setSubColumnRefreshKey((k) => k + 1),
+    [],
+  );
 
   // Hidden file input ref for upload
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -256,7 +262,12 @@ export default function SshFileTree({
       .finally(() => setLoading(false));
   }, [currentPath, fetchDir]);
 
-  const mvMut = api.sshTerminal.mv.useMutation({ onSuccess: refresh });
+  const mvMut = api.sshTerminal.mv.useMutation({
+    onSuccess: () => {
+      refresh();
+      bumpSubColumnRefresh();
+    },
+  });
 
   // Auto-refresh when uploads finish
   const refreshedUploadIds = useRef(new Set<string>());
@@ -383,7 +394,7 @@ export default function SshFileTree({
   // ── Drag-and-drop handlers ──
 
   const handleDragStart = useCallback(
-    (node: FileNode, e: React.DragEvent) => {
+    (node: FileNode, contextNodes: FileNode[], e: React.DragEvent) => {
       let paths: Set<string>;
       if (!selectedPaths.has(node.path)) {
         setSelectedPaths(new Set([node.path]));
@@ -392,14 +403,17 @@ export default function SshFileTree({
         paths = new Set(selectedPaths);
       }
       setDraggingPaths(paths);
+      isInternalDragRef.current = true;
 
-      // Write cross-storage drag payload
-      const dragNodes = nodes.filter((n) => paths.has(n.path));
+      // Write cross-storage drag payload — prefer contextNodes (the actual
+      // view container the user is dragging from) over the global node list.
+      const source = contextNodes.length > 0 ? contextNodes : nodes;
+      const dragNodes = source.filter((n) => paths.has(n.path));
       const payload = buildDragPayload(
         "ssh-terminal",
         terminalId,
         connectionLabel ?? terminalId,
-        dragNodes,
+        dragNodes.length > 0 ? dragNodes : [node],
       );
       writeDragPayload(e, payload);
     },
@@ -408,21 +422,30 @@ export default function SshFileTree({
 
   const handleDragEnd = useCallback(() => {
     setDraggingPaths(new Set());
+    isInternalDragRef.current = false;
   }, []);
 
-  const handleDropToFolder = useCallback(
-    (targetNode: FileNode, e: React.DragEvent) => {
-      if (!targetNode.isDirectory) return;
-
-      // Check for cross-storage drag payload
+  /**
+   * Unified drop handler — `targetDir` is the absolute remote directory.
+   * Used by folder items, sub-column blank areas, and the root container.
+   * Reads the source from the drag payload (works across windows / sub-columns).
+   */
+  const handleDropToPath = useCallback(
+    (targetDir: string, e: React.DragEvent) => {
+      isInternalDragRef.current = false;
+      setIsDragOver(false);
+      dragEnterCount.current = 0;
       const payload = readDragPayload(e);
-      if (payload && isCrossStorageDrop(payload, "ssh-terminal", terminalId)) {
+      if (!payload) return;
+
+      // Cross-storage transfer
+      if (isCrossStorageDrop(payload, "ssh-terminal", terminalId)) {
         const req = buildTransferRequest(
           payload,
           "ssh-terminal",
           terminalId,
           connectionLabel ?? terminalId,
-          targetNode.path,
+          targetDir,
         );
         createTransfer(req)
           .then((transferId) => {
@@ -439,20 +462,21 @@ export default function SshFileTree({
         return;
       }
 
-      // Same-storage move
-      for (const srcPath of draggingPaths) {
-        if (srcPath !== targetNode.path) {
-          mvMut.mutate({
-            id: terminalId,
-            from: srcPath,
-            toDir: targetNode.path,
-          });
+      // Same-terminal move (read source paths from payload, supports cross-window drag)
+      for (const f of payload.files) {
+        const parent = getParentPath(f.path);
+        if (parent === targetDir) continue;
+        if (
+          f.isDirectory &&
+          (f.path === targetDir || targetDir.startsWith(`${f.path}/`))
+        ) {
+          continue;
         }
+        mvMut.mutate({ id: terminalId, from: f.path, toDir: targetDir });
       }
       setDraggingPaths(new Set());
     },
     [
-      draggingPaths,
       terminalId,
       mvMut,
       connectionLabel,
@@ -461,6 +485,14 @@ export default function SshFileTree({
       t,
       message,
     ],
+  );
+
+  const handleDropToFolder = useCallback(
+    (targetNode: FileNode, e: React.DragEvent) => {
+      if (!targetNode.isDirectory) return;
+      handleDropToPath(targetNode.path, e);
+    },
+    [handleDropToPath],
   );
 
   const handleDownload = useCallback(
@@ -629,6 +661,7 @@ export default function SshFileTree({
   // ── Cross-storage container drop (into current directory) ──
 
   const handleContainerDragOver = useCallback((e: React.DragEvent) => {
+    if (isInternalDragRef.current) return;
     if (hasDragPayload(e)) {
       e.preventDefault();
       e.dataTransfer.dropEffect = "copy";
@@ -636,6 +669,7 @@ export default function SshFileTree({
   }, []);
 
   const handleContainerDragEnter = useCallback((e: React.DragEvent) => {
+    if (isInternalDragRef.current) return;
     dragEnterCount.current++;
     if (hasDragPayload(e)) {
       e.preventDefault();
@@ -655,38 +689,13 @@ export default function SshFileTree({
     (e: React.DragEvent) => {
       dragEnterCount.current = 0;
       setIsDragOver(false);
-      const payload = readDragPayload(e);
-      if (!payload || !isCrossStorageDrop(payload, "ssh-terminal", terminalId))
-        return;
+      // In column mode, route to the deepest visible path (set by FileColumnView).
+      const targetDir =
+        viewMode === "column" && columnLeafPath ? columnLeafPath : currentPath;
       e.preventDefault();
-      const req = buildTransferRequest(
-        payload,
-        "ssh-terminal",
-        terminalId,
-        connectionLabel ?? terminalId,
-        currentPath,
-      );
-      createTransfer(req)
-        .then((transferId) => {
-          pendingTransferIds.current.add(transferId);
-          windowManager.openWindow({
-            type: "transfer",
-            title: t("transfer.title"),
-            route: `/transfers/${transferId}`,
-            metadata: { transferId },
-          });
-        })
-        .catch((err: Error) => message.error(err.message));
+      handleDropToPath(targetDir, e);
     },
-    [
-      terminalId,
-      connectionLabel,
-      currentPath,
-      createTransfer,
-      windowManager,
-      t,
-      message,
-    ],
+    [viewMode, columnLeafPath, currentPath, handleDropToPath],
   );
 
   return (
@@ -767,7 +776,9 @@ export default function SshFileTree({
             onDragStart={handleDragStart}
             onDragEnd={handleDragEnd}
             onDropToFolder={handleDropToFolder}
+            onDropToDir={handleDropToPath}
             draggingPaths={draggingPaths}
+            refreshKey={subColumnRefreshKey}
           />
         ) : (
           <FileGrid
