@@ -30,6 +30,7 @@ import {
   useThemeCore,
   useWindowActions,
   useWindowActive,
+  useWindowId,
   useWindowState,
 } from "@/system";
 import SshDockerPanel from "./SshDockerPanel";
@@ -61,7 +62,7 @@ function getSshWsUrl(terminalId: string, sessionId: string): string {
 
 export default function SshTerminalWindow({
   terminalId,
-  windowId,
+  windowId: windowIdProp,
   initialSessionId,
   connectionLabel: connectionLabelProp,
 }: SshTerminalWindowProps) {
@@ -73,21 +74,34 @@ export default function SshTerminalWindow({
     terminalPref.data?.theme as Record<string, unknown>
   )?.colorScheme ?? "auto") as TerminalThemeId;
   const resolvedThemeRef = useRef(getTerminalTheme(terminalColorScheme, theme));
-  const win = windowId ? windows.find((w) => w.id === windowId) : undefined;
-  const savedPanelHeight = win?.metadata.sshPanelHeight || 192;
-  const savedPanelCollapsed = win?.metadata.sshPanelCollapsed ?? false;
+  // Ambient window id — works whether this component is the window's content
+  // (TerminalContent) or is inlined inside another page window (TerminalAppPage).
+  const ambientWindowId = useWindowId();
+  // windowIdProp is only set when this is the window's sole content (TerminalContent).
+  // In that case sshSessionId/sshInitialCwd may be persisted directly on the window.
+  const windowId = windowIdProp ?? ambientWindowId;
+  const win = windows.find((w) => w.id === windowId);
+  // Panel height / collapsed state: keyed by terminalId so multiple terminals
+  // hosted inside the same page window (TerminalAppPage) don't clobber each other.
+  const savedPanelHeight = win?.metadata.sshPanelHeights?.[terminalId] || 192;
+  const savedPanelCollapsed =
+    win?.metadata.sshPanelCollapsedMap?.[terminalId] ?? false;
 
   // ── Session ID: stable UUID that survives page refreshes via metadata ──
   // Use the one already persisted in metadata, or generate a new one on first open.
+  // Only persisted when this component owns the window (windowIdProp set) — in
+  // TerminalAppPage mode, sshSessionId is managed by the parent's terminalSessions map.
   const sessionIdRef = useRef<string>(
-    win?.metadata.sshSessionId || initialSessionId || randomUUID(),
+    (windowIdProp ? win?.metadata.sshSessionId : undefined) ||
+      initialSessionId ||
+      randomUUID(),
   );
   // Persist once on first render if it wasn't already in metadata.
   const sessionIdPersisted = useRef(false);
-  if (!sessionIdPersisted.current && win && windowId) {
+  if (!sessionIdPersisted.current && win && windowIdProp) {
     sessionIdPersisted.current = true;
     if (!win.metadata.sshSessionId) {
-      updateMetadata(windowId, { sshSessionId: sessionIdRef.current });
+      updateMetadata(windowIdProp, { sshSessionId: sessionIdRef.current });
     }
   }
 
@@ -95,16 +109,16 @@ export default function SshTerminalWindow({
   // Set from metadata when duplicating a session so the new shell lands in the
   // same directory the file browser was showing in the source window.
   const initialCwdRef = useRef<string | null>(
-    win?.metadata.sshInitialCwd ?? null,
+    windowIdProp ? (win?.metadata.sshInitialCwd ?? null) : null,
   );
   // Track the file-browser's current directory so Duplicate can carry it over.
   const fileBrowserPathRef = useRef<string>("/");
   const handleFileBrowserPathChange = useCallback(
     (p: string) => {
       fileBrowserPathRef.current = p;
-      if (windowId) updateMetadata(windowId, { sshInitialCwd: p });
+      if (windowIdProp) updateMetadata(windowIdProp, { sshInitialCwd: p });
     },
-    [windowId, updateMetadata],
+    [windowIdProp, updateMetadata],
   );
 
   const containerRef = useRef<HTMLDivElement>(null);
@@ -210,6 +224,31 @@ export default function SshTerminalWindow({
     (u) => u.status === "pending" || u.status === "uploading",
   ).length;
 
+  // Keep latest metadata accessible inside callbacks (avoids stale closures
+  // clobbering concurrent keys in the per-terminal map).
+  const metadataRef = useRef(win?.metadata);
+  metadataRef.current = win?.metadata;
+
+  const persistPanelHeight = useCallback(
+    (h: number) => {
+      const cur = metadataRef.current?.sshPanelHeights ?? {};
+      updateMetadata(windowId, {
+        sshPanelHeights: { ...cur, [terminalId]: h },
+      });
+    },
+    [windowId, terminalId, updateMetadata],
+  );
+
+  const persistPanelCollapsed = useCallback(
+    (c: boolean) => {
+      const cur = metadataRef.current?.sshPanelCollapsedMap ?? {};
+      updateMetadata(windowId, {
+        sshPanelCollapsedMap: { ...cur, [terminalId]: c },
+      });
+    },
+    [windowId, terminalId, updateMetadata],
+  );
+
   // ── Resizable bottom panel ──
   const [panelHeight, setPanelHeight] = useState(savedPanelHeight);
   const panelHeightRef = useRef(panelHeight);
@@ -219,7 +258,7 @@ export default function SshTerminalWindow({
   const handleToggleCollapse = useCallback(() => {
     const newCollapsed = !panelCollapsed;
     setPanelCollapsed(newCollapsed);
-    if (windowId) updateMetadata(windowId, { sshPanelCollapsed: newCollapsed });
+    persistPanelCollapsed(newCollapsed);
     requestAnimationFrame(() => {
       try {
         fitAddonRef.current?.fit();
@@ -227,14 +266,14 @@ export default function SshTerminalWindow({
         // ignore
       }
     });
-  }, [panelCollapsed, windowId, updateMetadata]);
+  }, [panelCollapsed, persistPanelCollapsed]);
 
   const handleTabButtonClick = useCallback(
     (tab: BottomTab) => {
       setBottomTab(tab);
       if (panelCollapsed) {
         setPanelCollapsed(false);
-        if (windowId) updateMetadata(windowId, { sshPanelCollapsed: false });
+        persistPanelCollapsed(false);
         requestAnimationFrame(() => {
           try {
             fitAddonRef.current?.fit();
@@ -244,7 +283,7 @@ export default function SshTerminalWindow({
         });
       }
     },
-    [panelCollapsed, windowId, updateMetadata],
+    [panelCollapsed, persistPanelCollapsed],
   );
 
   const handleDragStart = useCallback(
@@ -270,9 +309,8 @@ export default function SshTerminalWindow({
         draggingRef.current = false;
         document.removeEventListener("mousemove", onMouseMove);
         document.removeEventListener("mouseup", onMouseUp);
-        // Persist panel height to window metadata
-        if (windowId)
-          updateMetadata(windowId, { sshPanelHeight: panelHeightRef.current });
+        // Persist panel height to window metadata (per terminalId)
+        persistPanelHeight(panelHeightRef.current);
         // Re-fit terminal after resize
         try {
           fitAddonRef.current?.fit();
@@ -284,7 +322,7 @@ export default function SshTerminalWindow({
       document.addEventListener("mousemove", onMouseMove);
       document.addEventListener("mouseup", onMouseUp);
     },
-    [panelHeight, windowId, updateMetadata],
+    [panelHeight, persistPanelHeight],
   );
 
   // ── Host stats polling ──
