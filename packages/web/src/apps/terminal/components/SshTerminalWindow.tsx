@@ -355,7 +355,7 @@ export default function SshTerminalWindow({
     // current directory (auto-cd on connect).
     openWindow({
       type: "terminal",
-      title: win?.title || connectionLabelProp || terminalId,
+      title: connectionLabelProp || win?.title || terminalId,
       route: `/terminals/${terminalId}`,
       appId: win?.appId,
       sourceType: win?.sourceType ?? "ssh_terminal",
@@ -754,7 +754,7 @@ export default function SshTerminalWindow({
                   connected={connected}
                   uploadQueue={uploadQueue}
                   onUploadFiles={handleUploadFiles}
-                  connectionLabel={win?.title ?? connectionLabelProp}
+                  connectionLabel={connectionLabelProp ?? win?.title}
                   initialPath={win?.metadata.sshInitialCwd}
                   onPathChange={handleFileBrowserPathChange}
                 />
