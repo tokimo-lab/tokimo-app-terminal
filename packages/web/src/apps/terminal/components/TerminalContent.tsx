@@ -2,7 +2,7 @@
  * TerminalContent — Window content adapter for SSH terminals.
  */
 
-import { Spin } from "@tokiomo/components";
+import { Spin } from "@tokimo/ui";
 import { lazy, Suspense } from "react";
 import type { WindowState } from "@/system";
 

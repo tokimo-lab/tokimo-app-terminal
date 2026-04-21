@@ -2,7 +2,7 @@
  * Docker volumes table for SSH Docker panel.
  * Virtualized via shared SshDataTable.
  */
-import { useContextMenu } from "@tokiomo/components";
+import { useContextMenu } from "@tokimo/ui";
 import { Trash2 } from "lucide-react";
 import { useCallback, useMemo } from "react";
 import { api } from "@/generated/rust-api";

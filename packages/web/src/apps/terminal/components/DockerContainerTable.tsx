@@ -2,7 +2,7 @@
  * Docker containers table for SSH Docker panel.
  * Virtualized via shared SshDataTable. Right-click context menu + per-row action buttons.
  */
-import { useContextMenu } from "@tokiomo/components";
+import { useContextMenu } from "@tokimo/ui";
 import {
   Box,
   CircleCheck,

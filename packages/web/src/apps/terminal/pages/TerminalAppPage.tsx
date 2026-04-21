@@ -16,7 +16,7 @@ import {
   Modal,
   Spin,
   useContextMenu,
-} from "@tokiomo/components";
+} from "@tokimo/ui";
 import { Copy, Monitor, Pencil, Plus, Trash2 } from "lucide-react";
 import { lazy, Suspense, useCallback, useMemo, useRef, useState } from "react";
 import { api, type SshTerminalOutput } from "@/generated/rust-api";

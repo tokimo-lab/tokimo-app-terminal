@@ -3,7 +3,7 @@
  * Lists processes via /api/apps/terminal/connections/{id}/ps endpoint.
  * Right-click context menu to kill processes.
  */
-import { useContextMenu } from "@tokiomo/components";
+import { useContextMenu } from "@tokimo/ui";
 import { CircleX, OctagonX, Pause, Play } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { api } from "@/generated/rust-api";

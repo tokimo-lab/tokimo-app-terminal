@@ -2,7 +2,7 @@
  * Docker container detail / inspect view for SSH Docker panel.
  * Shows container config, mounts, env, networks, etc.
  */
-import { LoadingOutlined } from "@tokiomo/components";
+import { LoadingOutlined } from "@tokimo/ui";
 import { ArrowLeft, RefreshCw } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { api } from "@/generated/rust-api";

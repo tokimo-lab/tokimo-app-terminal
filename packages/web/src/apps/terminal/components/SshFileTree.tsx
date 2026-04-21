@@ -7,12 +7,7 @@
  * Supports: navigate, new folder, rename, delete, download,
  * double-click to open text files (with SSH-backed read/write).
  */
-import {
-  type ContextMenuItem,
-  Modal,
-  Spin,
-  useContextMenu,
-} from "@tokiomo/components";
+import { type ContextMenuItem, Modal, Spin, useContextMenu } from "@tokimo/ui";
 import {
   CheckCircle,
   Download,

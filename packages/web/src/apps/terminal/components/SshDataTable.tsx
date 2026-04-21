@@ -6,7 +6,7 @@
  * Visual baseline matches SshProcessList: small text-xs font-mono rows,
  * text-fg-secondary with subtle hover, row height 24px.
  */
-import { cn, Input, ScrollArea } from "@tokiomo/components";
+import { cn, Input, ScrollArea } from "@tokimo/ui";
 import { RefreshCw, Search } from "lucide-react";
 import {
   type ReactNode,

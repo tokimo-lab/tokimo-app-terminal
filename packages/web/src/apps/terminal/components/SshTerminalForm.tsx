@@ -1,4 +1,4 @@
-import { Button, Input, Select } from "@tokiomo/components";
+import { Button, Input, Select } from "@tokimo/ui";
 import { type FormEvent, useState } from "react";
 import type {
   CreateSshTerminalInput,
