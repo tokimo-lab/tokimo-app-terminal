@@ -210,11 +210,10 @@ async fn handle_terminal_session(
     let recv_task = tokio::spawn(async move {
         while let Some(Ok(msg)) = ws_stream.next().await {
             match msg {
-                Message::Binary(data) => {
-                    if input_tx.send(PtyInput::Data(data.to_vec())).await.is_err() {
+                Message::Binary(data)
+                    if input_tx.send(PtyInput::Data(data.to_vec())).await.is_err() => {
                         break;
                     }
-                }
                 Message::Text(text) => {
                     let text_str: &str = &text;
                     if let Some(json_str) = text_str.strip_prefix('\x01') {
