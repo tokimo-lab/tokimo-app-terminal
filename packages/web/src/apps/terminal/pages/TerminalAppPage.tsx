@@ -200,7 +200,7 @@ export default function TerminalAppPage() {
   );
 
   return (
-    <div ref={containerRef} className="flex h-full">
+    <div ref={containerRef} className="relative flex h-full">
       {/* ── Left Sidebar ── */}
       <AppSidebar
         width={224}
