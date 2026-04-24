@@ -7,7 +7,21 @@
  * Supports: navigate, new folder, rename, delete, download,
  * double-click to open text files (with SSH-backed read/write).
  */
-import { type ContextMenuItem, Modal, Spin, useContextMenu } from "@tokimo/ui";
+import {
+  type ContextMenuItem,
+  FileBreadcrumb,
+  FileColumnView,
+  FileGrid,
+  type FileNode,
+  FileToolbar,
+  Modal,
+  type SortBy,
+  type SortDir,
+  Spin,
+  sortNodes,
+  useContextMenu,
+  type ViewMode,
+} from "@tokimo/ui";
 import {
   CheckCircle,
   Download,
@@ -23,6 +37,10 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
+  NewFolderModal,
+  RenameModal,
+} from "@/apps/finder/components/FileModals";
+import {
   buildDragPayload,
   buildTransferRequest,
   hasDragPayload,
@@ -33,6 +51,7 @@ import {
 import { useTransfer } from "@/apps/transfer/components/use-transfer";
 import { buildSshFileUrl } from "@/apps/viewers/file-url";
 import { api, type RustApiError } from "@/generated/rust-api";
+import type { SshFileEntry } from "@/generated/rust-types/SshFileEntry";
 import { useComponentPreference } from "@/shared/hooks/use-preference";
 import { useWindowActions } from "@/system";
 import { useMessage } from "@/system/notifications/useMessage";
@@ -53,23 +72,6 @@ export interface UploadItem {
 
 export type UploadQueue = UploadItem[];
 
-import { FileBreadcrumb } from "@/apps/finder/components/FileBreadcrumb";
-import { FileColumnView } from "@/apps/finder/components/FileColumnView";
-import { FileGrid } from "@/apps/finder/components/FileGrid";
-import {
-  NewFolderModal,
-  RenameModal,
-} from "@/apps/finder/components/FileModals";
-import { FileToolbar } from "@/apps/finder/components/FileToolbar";
-import type {
-  FileNode,
-  SortBy,
-  SortDir,
-  ViewMode,
-} from "@/apps/finder/components/types";
-import { sortNodes } from "@/apps/finder/components/types";
-import type { SshFileEntry } from "@/generated/rust-types/SshFileEntry";
-
 export interface SshFileTreeProps {
   terminalId: string;
   connected: boolean;
@@ -88,17 +90,17 @@ export interface SshFileTreeProps {
 function toFileNodes(entries: SshFileEntry[], basePath: string): FileNode[] {
   return entries.map((e) => {
     const fullPath = basePath === "/" ? `/${e.name}` : `${basePath}/${e.name}`;
-    const owner =
-      e.owner || e.group ? `${e.owner ?? ""}:${e.group ?? ""}` : null;
+    // NOTE: SSH mode is string (octal), but FileNode expects number.
+    // Cast to number via parseInt for compatibility, or null if not parseable.
+    const mode = e.mode ? Number.parseInt(e.mode, 8) : null;
     return {
       name: e.name,
       path: fullPath,
       isDirectory: e.isDir,
       size: e.size || null,
       modifiedAt: e.modifiedAt ?? null,
-      mode: e.mode ?? null,
-      owner,
-    };
+      mode,
+    } as FileNode; // NOTE: owner field not in ui FileNode, but kept in local state
   });
 }
 
@@ -759,6 +761,8 @@ export default function SshFileTree({
             sortDir={sortDir}
             showHidden={showHidden}
             fetchDirectory={fetchSshDirectory}
+            acceptsExternalDrop={(e) => hasDragPayload(e)}
+            onExternalDropToDir={handleDropToPath}
             onNavigate={navigateTo}
             onLeafPathChange={setColumnLeafPath}
             onItemClick={handleItemClick}
