@@ -20,6 +20,7 @@ import {
   Spin,
   sortNodes,
   useContextMenu,
+  useInlineRename,
   type ViewMode,
 } from "@tokimo/ui";
 import {
@@ -36,10 +37,7 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import {
-  NewFolderModal,
-  RenameModal,
-} from "@/apps/finder/components/FileModals";
+import { NewFolderModal } from "@/apps/finder/components/FileModals";
 import {
   buildDragPayload,
   buildTransferRequest,
@@ -211,10 +209,6 @@ export default function SshFileTree({
 
   // Modals
   const [showNewFolder, setShowNewFolder] = useState(false);
-  const [renameTarget, setRenameTarget] = useState<{
-    path: string;
-    name: string;
-  } | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState(false);
 
   // Window manager for opening files in Monaco editor
@@ -364,20 +358,22 @@ export default function SshFileTree({
   );
 
   const handleRename = useCallback(
-    async (newName: string) => {
-      if (!renameTarget) return;
-      const parent = getParentPath(renameTarget.path);
+    async (oldPath: string, newName: string) => {
+      const parent = getParentPath(oldPath);
       const to = joinPath(parent, newName);
       await api.sshTerminal.rename.mutate({
         id: terminalId,
-        from: renameTarget.path,
+        from: oldPath,
         to,
       });
-      setRenameTarget(null);
-      refresh();
     },
-    [terminalId, renameTarget, refresh],
+    [terminalId],
   );
+
+  const inlineRename = useInlineRename({
+    renameFn: handleRename,
+    onSuccess: refresh,
+  });
 
   const handleDelete = useCallback(async () => {
     for (const path of selectedPaths) {
@@ -493,11 +489,13 @@ export default function SshFileTree({
   );
 
   const handleDownload = useCallback(
-    (path: string) => {
+    (node: FileNode) => {
       const a = document.createElement("a");
-      a.href = buildDownloadUrl(terminalId, path);
-      a.download = "";
+      a.href = buildDownloadUrl(terminalId, node.path);
+      a.download = node.name;
+      document.body.appendChild(a);
       a.click();
+      a.remove();
     },
     [terminalId],
   );
@@ -580,14 +578,14 @@ export default function SshFileTree({
           key: "rename",
           label: t("fileManager.ctx.rename"),
           icon: <Pencil size={13} />,
-          onClick: () => setRenameTarget({ path: node.path, name: node.name }),
+          onClick: () => inlineRename.startRename(node.path),
           disabled: multi > 1,
         },
         {
           key: "download",
           label: t("common.download", "下载"),
           icon: <Download size={13} />,
-          onClick: () => handleDownload(node.path),
+          onClick: () => handleDownload(node),
           disabled: node.isDirectory,
         },
         { key: "d2", type: "divider" },
@@ -605,7 +603,15 @@ export default function SshFileTree({
 
       openCtxMenu(e, items);
     },
-    [selectedPaths, navigateTo, handleOpenFile, handleDownload, openCtxMenu, t],
+    [
+      selectedPaths,
+      navigateTo,
+      handleOpenFile,
+      handleDownload,
+      openCtxMenu,
+      t,
+      inlineRename,
+    ],
   );
 
   const triggerUpload = useCallback((targetDir: string) => {
@@ -756,7 +762,7 @@ export default function SshFileTree({
             currentPath={currentPath}
             nodes={nodes}
             selectedPaths={selectedPaths}
-            renaming={null}
+            renaming={inlineRename.renaming}
             sortBy={sortBy}
             sortDir={sortDir}
             showHidden={showHidden}
@@ -769,8 +775,8 @@ export default function SshFileTree({
             onItemDoubleClick={handleItemDoubleClick}
             onItemContextMenu={handleItemContextMenu}
             onEmptyContextMenu={handleEmptyContextMenu}
-            onRenameSubmit={(_path: string, _name: string) => {}}
-            onRenameCancel={() => {}}
+            onRenameSubmit={inlineRename.handleSubmit}
+            onRenameCancel={inlineRename.handleCancel}
             onClearSelection={clearSelection}
             onDragStart={handleDragStart}
             onDragEnd={handleDragEnd}
@@ -784,7 +790,7 @@ export default function SshFileTree({
             nodes={nodes}
             selectedPaths={selectedPaths}
             viewMode={viewMode}
-            renaming={null}
+            renaming={inlineRename.renaming}
             currentPath={currentPath}
             onNavigateUp={
               currentPath !== "/"
@@ -795,8 +801,8 @@ export default function SshFileTree({
             onItemDoubleClick={handleItemDoubleClick}
             onItemContextMenu={handleItemContextMenu}
             onEmptyContextMenu={handleEmptyContextMenu}
-            onRenameSubmit={(_path: string, _name: string) => {}}
-            onRenameCancel={() => {}}
+            onRenameSubmit={inlineRename.handleSubmit}
+            onRenameCancel={inlineRename.handleCancel}
             onSelectPaths={() => {}}
             onClearSelection={clearSelection}
             onDragStart={handleDragStart}
@@ -893,14 +899,6 @@ export default function SshFileTree({
         open={showNewFolder}
         onClose={() => setShowNewFolder(false)}
         onConfirm={handleMkdir}
-      />
-
-      {/* Rename modal */}
-      <RenameModal
-        open={!!renameTarget}
-        currentName={renameTarget?.name ?? ""}
-        onClose={() => setRenameTarget(null)}
-        onConfirm={handleRename}
       />
 
       {/* Delete confirmation */}
