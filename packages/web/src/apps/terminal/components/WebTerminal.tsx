@@ -22,6 +22,13 @@ interface WebTerminalProps {
   minHeight?: number;
   /** Remove border, rounded corners for embedding. Default: false */
   borderless?: boolean;
+  /**
+   * sessionStorage key used to persist the server-assigned session id so a
+   * page refresh reconnects to the same shell. Defaults to a shared
+   * "tokimo-terminal-session-id" — pass a unique value (e.g.
+   * `ai-agent-${agentId}`) when embedding multiple terminals.
+   */
+  sessionStorageKey?: string;
 }
 
 type ConnectionStatus = "connecting" | "connected" | "disconnected" | "error";
@@ -31,6 +38,7 @@ export default function WebTerminal({
   height = "100%",
   minHeight = 300,
   borderless = false,
+  sessionStorageKey = SESSION_STORAGE_KEY,
 }: WebTerminalProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const termRef = useRef<Terminal | null>(null);
@@ -111,7 +119,7 @@ export default function WebTerminal({
       fitAddonRef.current = fitAddon;
 
       // ── WebSocket connection ──────────────────────────────────────────
-      const savedSession = sessionStorage.getItem(SESSION_STORAGE_KEY);
+      const savedSession = sessionStorage.getItem(sessionStorageKey);
       const connectUrl = savedSession
         ? `${wsUrl}${wsUrl.includes("?") ? "&" : "?"}session_id=${encodeURIComponent(savedSession)}`
         : wsUrl;
@@ -134,7 +142,7 @@ export default function WebTerminal({
           // Control message: \x02 prefix = session_id assignment
           if (ev.data.startsWith("\x02")) {
             const sid = ev.data.slice(1);
-            sessionStorage.setItem(SESSION_STORAGE_KEY, sid);
+            sessionStorage.setItem(sessionStorageKey, sid);
             return;
           }
           term.write(ev.data);
@@ -210,7 +218,7 @@ export default function WebTerminal({
       }
       fitAddonRef.current = null;
     };
-  }, [wsUrl]);
+  }, [wsUrl, sessionStorageKey]);
 
   return (
     <div className={`relative ${borderless ? "flex h-full flex-col" : ""}`}>
