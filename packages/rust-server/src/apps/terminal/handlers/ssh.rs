@@ -9,7 +9,7 @@ use axum::{
     response::{IntoResponse, Json},
 };
 use futures_util::{SinkExt, StreamExt};
-use rust_ssh_terminal::SshCredentials;
+use tokimo_package_ssh::SshCredentials;
 use serde::Deserialize;
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
@@ -308,12 +308,12 @@ async fn handle_ssh_ws(
                 let _ = client_tx.try_send(bytes::Bytes::from(entry.history.clone()));
             }
             // The session is already authenticated & running — tell the client immediately.
-            let _ = client_tx.try_send(bytes::Bytes::from_static(rust_ssh_terminal::session::SSH_READY_MARKER));
+            let _ = client_tx.try_send(bytes::Bytes::from_static(tokimo_package_ssh::session::SSH_READY_MARKER));
             entry.clients.push(client_tx);
             entry.input_tx.clone()
         } else {
             // New session: open SSH shell and register in the map.
-            let (input_tx, input_rx) = mpsc::channel::<rust_ssh_terminal::ShellInput>(256);
+            let (input_tx, input_rx) = mpsc::channel::<tokimo_package_ssh::ShellInput>(256);
             let (output_tx, mut output_rx) = mpsc::channel::<bytes::Bytes>(256);
 
             reg.insert(
@@ -343,7 +343,7 @@ async fn handle_ssh_ws(
 
             // Task: run the interactive SSH shell.
             tokio::spawn(async move {
-                if let Err(e) = rust_ssh_terminal::session::run_interactive_shell(
+                if let Err(e) = tokimo_package_ssh::session::run_interactive_shell(
                     &creds,
                     startup_command.as_deref(),
                     output_tx,
@@ -365,7 +365,7 @@ async fn handle_ssh_ws(
             match msg {
                 Message::Binary(data)
                     if input_tx
-                        .send(rust_ssh_terminal::ShellInput::Data(data.to_vec()))
+                        .send(tokimo_package_ssh::ShellInput::Data(data.to_vec()))
                         .await
                         .is_err()
                     => {
@@ -376,14 +376,14 @@ async fn handle_ssh_ws(
                     if let Some(json_str) = text_str.strip_prefix('\x01') {
                         if let Ok(resize) = serde_json::from_str::<ResizePayload>(json_str) {
                             let _ = input_tx
-                                .send(rust_ssh_terminal::ShellInput::Resize {
+                                .send(tokimo_package_ssh::ShellInput::Resize {
                                     cols: resize.cols,
                                     rows: resize.rows,
                                 })
                                 .await;
                         }
                     } else if input_tx
-                        .send(rust_ssh_terminal::ShellInput::Data(text.as_bytes().to_vec()))
+                        .send(tokimo_package_ssh::ShellInput::Data(text.as_bytes().to_vec()))
                         .await
                         .is_err()
                     {
@@ -423,9 +423,9 @@ pub async fn ssh_terminal_stats(
     State(state): State<Arc<AppState>>,
     AuthUser(_): AuthUser,
     Path(id): Path<String>,
-) -> Result<Json<ApiResponse<rust_ssh_terminal::system::SshHostStats>>, AppError> {
+) -> Result<Json<ApiResponse<tokimo_package_ssh::system::SshHostStats>>, AppError> {
     let creds = get_creds(&state, &id).await?;
-    let stats = rust_ssh_terminal::system::get_stats(&creds).await?;
+    let stats = tokimo_package_ssh::system::get_stats(&creds).await?;
     Ok(ok(stats))
 }
 
@@ -434,9 +434,9 @@ pub async fn ssh_terminal_ls(
     AuthUser(_): AuthUser,
     Path(id): Path<String>,
     Query(query): Query<LsQuery>,
-) -> Result<Json<ApiResponse<rust_ssh_terminal::files::SshLsResponse>>, AppError> {
+) -> Result<Json<ApiResponse<tokimo_package_ssh::files::SshLsResponse>>, AppError> {
     let creds = get_creds(&state, &id).await?;
-    let response = rust_ssh_terminal::files::list_dir(&creds, &query.path).await?;
+    let response = tokimo_package_ssh::files::list_dir(&creds, &query.path).await?;
     Ok(ok(response))
 }
 
@@ -444,9 +444,9 @@ pub async fn ssh_terminal_ps(
     State(state): State<Arc<AppState>>,
     AuthUser(_): AuthUser,
     Path(id): Path<String>,
-) -> Result<Json<ApiResponse<rust_ssh_terminal::system::SshPsResponse>>, AppError> {
+) -> Result<Json<ApiResponse<tokimo_package_ssh::system::SshPsResponse>>, AppError> {
     let creds = get_creds(&state, &id).await?;
-    let response = rust_ssh_terminal::system::list_processes(&creds).await?;
+    let response = tokimo_package_ssh::system::list_processes(&creds).await?;
     Ok(ok(response))
 }
 
@@ -458,7 +458,7 @@ pub async fn ssh_terminal_kill(
 ) -> Result<Json<ApiResponse<()>>, AppError> {
     let creds = get_creds(&state, &id).await?;
     let signal = body.signal.as_deref().unwrap_or("TERM");
-    rust_ssh_terminal::system::kill_process(&creds, body.pid, signal).await?;
+    tokimo_package_ssh::system::kill_process(&creds, body.pid, signal).await?;
     Ok(ok(()))
 }
 
@@ -466,9 +466,9 @@ pub async fn ssh_terminal_df(
     State(state): State<Arc<AppState>>,
     AuthUser(_): AuthUser,
     Path(id): Path<String>,
-) -> Result<Json<ApiResponse<rust_ssh_terminal::system::SshDfResponse>>, AppError> {
+) -> Result<Json<ApiResponse<tokimo_package_ssh::system::SshDfResponse>>, AppError> {
     let creds = get_creds(&state, &id).await?;
-    let response = rust_ssh_terminal::system::get_disk_usage(&creds).await?;
+    let response = tokimo_package_ssh::system::get_disk_usage(&creds).await?;
     Ok(ok(response))
 }
 
@@ -476,9 +476,9 @@ pub async fn ssh_terminal_net(
     State(state): State<Arc<AppState>>,
     AuthUser(_): AuthUser,
     Path(id): Path<String>,
-) -> Result<Json<ApiResponse<rust_ssh_terminal::network::SshNetworkResponse>>, AppError> {
+) -> Result<Json<ApiResponse<tokimo_package_ssh::network::SshNetworkResponse>>, AppError> {
     let creds = get_creds(&state, &id).await?;
-    let response = rust_ssh_terminal::network::get_network_info(&creds).await?;
+    let response = tokimo_package_ssh::network::get_network_info(&creds).await?;
     Ok(ok(response))
 }
 
@@ -491,7 +491,7 @@ pub async fn ssh_terminal_mkdir(
     Json(input): Json<SshFileOpInput>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
     let creds = get_creds(&state, &id).await?;
-    rust_ssh_terminal::files::mkdir(&creds, &input.path).await?;
+    tokimo_package_ssh::files::mkdir(&creds, &input.path).await?;
     Ok(ok_empty())
 }
 
@@ -502,7 +502,7 @@ pub async fn ssh_terminal_rm(
     Json(input): Json<SshFileOpInput>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
     let creds = get_creds(&state, &id).await?;
-    rust_ssh_terminal::files::rm(&creds, &input.path).await?;
+    tokimo_package_ssh::files::rm(&creds, &input.path).await?;
     Ok(ok_empty())
 }
 
@@ -513,7 +513,7 @@ pub async fn ssh_terminal_rename(
     Json(input): Json<SshRenameInput>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
     let creds = get_creds(&state, &id).await?;
-    rust_ssh_terminal::files::rename(&creds, &input.from, &input.to).await?;
+    tokimo_package_ssh::files::rename(&creds, &input.from, &input.to).await?;
     Ok(ok_empty())
 }
 
@@ -524,7 +524,7 @@ pub async fn ssh_terminal_mv(
     Json(input): Json<SshMvInput>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
     let creds = get_creds(&state, &id).await?;
-    rust_ssh_terminal::files::mv_to_dir(&creds, &input.from, &input.to_dir).await?;
+    tokimo_package_ssh::files::mv_to_dir(&creds, &input.from, &input.to_dir).await?;
     Ok(ok_empty())
 }
 
@@ -533,9 +533,9 @@ pub async fn ssh_terminal_read_file(
     AuthUser(_): AuthUser,
     Path(id): Path<String>,
     Json(input): Json<SshFileOpInput>,
-) -> Result<Json<ApiResponse<rust_ssh_terminal::files::SshFileContentResponse>>, AppError> {
+) -> Result<Json<ApiResponse<tokimo_package_ssh::files::SshFileContentResponse>>, AppError> {
     let creds = get_creds(&state, &id).await?;
-    let response = rust_ssh_terminal::files::read_file(&creds, &input.path).await?;
+    let response = tokimo_package_ssh::files::read_file(&creds, &input.path).await?;
     Ok(ok(response))
 }
 
@@ -546,7 +546,7 @@ pub async fn ssh_terminal_write_file(
     Json(input): Json<SshWriteFileInput>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
     let creds = get_creds(&state, &id).await?;
-    rust_ssh_terminal::files::write_file(&creds, &input.path, &input.content).await?;
+    tokimo_package_ssh::files::write_file(&creds, &input.path, &input.content).await?;
     Ok(ok_empty())
 }
 
@@ -563,7 +563,7 @@ pub async fn ssh_terminal_download(
     let safe_filename = filename.replace('"', "\\\"");
 
     // Open the SSH channel and start streaming immediately — no full buffering.
-    let rx = rust_ssh_terminal::files::download_stream(&creds, &query.path).await?;
+    let rx = tokimo_package_ssh::files::download_stream(&creds, &query.path).await?;
 
     // Convert the mpsc receiver into an Axum streaming body.
     let byte_stream = ReceiverStream::new(rx).map(|chunk| chunk.map_err(|e| std::io::Error::other(e.to_string())));
@@ -635,7 +635,7 @@ pub async fn ssh_terminal_upload(
 
     let bytes = file_bytes.bad_request("no file in request")?;
 
-    rust_ssh_terminal::files::upload_file(&creds, &remote_path, &bytes).await?;
+    tokimo_package_ssh::files::upload_file(&creds, &remote_path, &bytes).await?;
     Ok(ok_empty())
 }
 
@@ -645,9 +645,9 @@ pub async fn ssh_docker_ps(
     State(state): State<Arc<AppState>>,
     AuthUser(_): AuthUser,
     Path(id): Path<String>,
-) -> Result<Json<ApiResponse<rust_ssh_terminal::docker::SshDockerPsResponse>>, AppError> {
+) -> Result<Json<ApiResponse<tokimo_package_ssh::docker::SshDockerPsResponse>>, AppError> {
     let creds = get_creds(&state, &id).await?;
-    let response = rust_ssh_terminal::docker::ps(&creds).await?;
+    let response = tokimo_package_ssh::docker::ps(&creds).await?;
     Ok(ok(response))
 }
 
@@ -658,7 +658,7 @@ pub async fn ssh_docker_start(
     Json(body): Json<DockerActionInput>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
     let creds = get_creds(&state, &id).await?;
-    rust_ssh_terminal::docker::start(&creds, &body.container_id).await?;
+    tokimo_package_ssh::docker::start(&creds, &body.container_id).await?;
     Ok(ok_empty())
 }
 
@@ -669,7 +669,7 @@ pub async fn ssh_docker_stop(
     Json(body): Json<DockerActionInput>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
     let creds = get_creds(&state, &id).await?;
-    rust_ssh_terminal::docker::stop(&creds, &body.container_id).await?;
+    tokimo_package_ssh::docker::stop(&creds, &body.container_id).await?;
     Ok(ok_empty())
 }
 
@@ -680,7 +680,7 @@ pub async fn ssh_docker_restart(
     Json(body): Json<DockerActionInput>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
     let creds = get_creds(&state, &id).await?;
-    rust_ssh_terminal::docker::restart(&creds, &body.container_id).await?;
+    tokimo_package_ssh::docker::restart(&creds, &body.container_id).await?;
     Ok(ok_empty())
 }
 
@@ -689,10 +689,10 @@ pub async fn ssh_docker_logs(
     AuthUser(_): AuthUser,
     Path(id): Path<String>,
     Json(body): Json<DockerLogsInput>,
-) -> Result<Json<ApiResponse<rust_ssh_terminal::docker::SshDockerLogsResponse>>, AppError> {
+) -> Result<Json<ApiResponse<tokimo_package_ssh::docker::SshDockerLogsResponse>>, AppError> {
     let creds = get_creds(&state, &id).await?;
     let tail = body.tail.unwrap_or(200);
-    let response = rust_ssh_terminal::docker::logs(&creds, &body.container_id, tail).await?;
+    let response = tokimo_package_ssh::docker::logs(&creds, &body.container_id, tail).await?;
     Ok(ok(response))
 }
 
@@ -700,9 +700,9 @@ pub async fn ssh_docker_images(
     State(state): State<Arc<AppState>>,
     AuthUser(_): AuthUser,
     Path(id): Path<String>,
-) -> Result<Json<ApiResponse<rust_ssh_terminal::docker::SshDockerImagesResponse>>, AppError> {
+) -> Result<Json<ApiResponse<tokimo_package_ssh::docker::SshDockerImagesResponse>>, AppError> {
     let creds = get_creds(&state, &id).await?;
-    let response = rust_ssh_terminal::docker::images(&creds).await?;
+    let response = tokimo_package_ssh::docker::images(&creds).await?;
     Ok(ok(response))
 }
 
@@ -713,7 +713,7 @@ pub async fn ssh_docker_rm(
     Json(body): Json<DockerActionInput>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
     let creds = get_creds(&state, &id).await?;
-    rust_ssh_terminal::docker::rm(&creds, &body.container_id).await?;
+    tokimo_package_ssh::docker::rm(&creds, &body.container_id).await?;
     Ok(ok_empty())
 }
 
@@ -724,7 +724,7 @@ pub async fn ssh_docker_pause(
     Json(body): Json<DockerActionInput>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
     let creds = get_creds(&state, &id).await?;
-    rust_ssh_terminal::docker::pause(&creds, &body.container_id).await?;
+    tokimo_package_ssh::docker::pause(&creds, &body.container_id).await?;
     Ok(ok_empty())
 }
 
@@ -735,7 +735,7 @@ pub async fn ssh_docker_unpause(
     Json(body): Json<DockerActionInput>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
     let creds = get_creds(&state, &id).await?;
-    rust_ssh_terminal::docker::unpause(&creds, &body.container_id).await?;
+    tokimo_package_ssh::docker::unpause(&creds, &body.container_id).await?;
     Ok(ok_empty())
 }
 
@@ -746,7 +746,7 @@ pub async fn ssh_docker_rmi(
     Json(body): Json<DockerImageActionInput>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
     let creds = get_creds(&state, &id).await?;
-    rust_ssh_terminal::docker::rmi(&creds, &body.image_id).await?;
+    tokimo_package_ssh::docker::rmi(&creds, &body.image_id).await?;
     Ok(ok_empty())
 }
 
@@ -754,9 +754,9 @@ pub async fn ssh_docker_networks(
     State(state): State<Arc<AppState>>,
     AuthUser(_): AuthUser,
     Path(id): Path<String>,
-) -> Result<Json<ApiResponse<rust_ssh_terminal::docker::SshDockerNetworksResponse>>, AppError> {
+) -> Result<Json<ApiResponse<tokimo_package_ssh::docker::SshDockerNetworksResponse>>, AppError> {
     let creds = get_creds(&state, &id).await?;
-    let response = rust_ssh_terminal::docker::networks(&creds).await?;
+    let response = tokimo_package_ssh::docker::networks(&creds).await?;
     Ok(ok(response))
 }
 
@@ -765,9 +765,9 @@ pub async fn ssh_docker_inspect(
     AuthUser(_): AuthUser,
     Path(id): Path<String>,
     Query(params): Query<DockerInspectQuery>,
-) -> Result<Json<ApiResponse<rust_ssh_terminal::docker::SshDockerInspectResponse>>, AppError> {
+) -> Result<Json<ApiResponse<tokimo_package_ssh::docker::SshDockerInspectResponse>>, AppError> {
     let creds = get_creds(&state, &id).await?;
-    let response = rust_ssh_terminal::docker::inspect(&creds, &params.container_id).await?;
+    let response = tokimo_package_ssh::docker::inspect(&creds, &params.container_id).await?;
     Ok(ok(response))
 }
 
@@ -775,9 +775,9 @@ pub async fn ssh_docker_volumes(
     State(state): State<Arc<AppState>>,
     AuthUser(_): AuthUser,
     Path(id): Path<String>,
-) -> Result<Json<ApiResponse<rust_ssh_terminal::docker::SshDockerVolumesResponse>>, AppError> {
+) -> Result<Json<ApiResponse<tokimo_package_ssh::docker::SshDockerVolumesResponse>>, AppError> {
     let creds = get_creds(&state, &id).await?;
-    let response = rust_ssh_terminal::docker::volumes(&creds).await?;
+    let response = tokimo_package_ssh::docker::volumes(&creds).await?;
     Ok(ok(response))
 }
 
@@ -788,7 +788,7 @@ pub async fn ssh_docker_volume_rm(
     Json(body): Json<DockerVolumeActionInput>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
     let creds = get_creds(&state, &id).await?;
-    rust_ssh_terminal::docker::volume_rm(&creds, &body.volume_name).await?;
+    tokimo_package_ssh::docker::volume_rm(&creds, &body.volume_name).await?;
     Ok(ok_empty())
 }
 
@@ -796,9 +796,9 @@ pub async fn ssh_docker_stats(
     State(state): State<Arc<AppState>>,
     AuthUser(_): AuthUser,
     Path(id): Path<String>,
-) -> Result<Json<ApiResponse<rust_ssh_terminal::docker::SshDockerStatsResponse>>, AppError> {
+) -> Result<Json<ApiResponse<tokimo_package_ssh::docker::SshDockerStatsResponse>>, AppError> {
     let creds = get_creds(&state, &id).await?;
-    let response = rust_ssh_terminal::docker::stats(&creds).await?;
+    let response = tokimo_package_ssh::docker::stats(&creds).await?;
     Ok(ok(response))
 }
 
@@ -809,7 +809,7 @@ pub async fn ssh_docker_network_rm(
     Json(body): Json<DockerNetworkActionInput>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
     let creds = get_creds(&state, &id).await?;
-    rust_ssh_terminal::docker::network_rm(&creds, &body.network_id).await?;
+    tokimo_package_ssh::docker::network_rm(&creds, &body.network_id).await?;
     Ok(ok_empty())
 }
 
@@ -817,9 +817,9 @@ pub async fn ssh_docker_prune_images(
     State(state): State<Arc<AppState>>,
     AuthUser(_): AuthUser,
     Path(id): Path<String>,
-) -> Result<Json<ApiResponse<rust_ssh_terminal::docker::SshDockerPruneResponse>>, AppError> {
+) -> Result<Json<ApiResponse<tokimo_package_ssh::docker::SshDockerPruneResponse>>, AppError> {
     let creds = get_creds(&state, &id).await?;
-    let response = rust_ssh_terminal::docker::prune_images(&creds).await?;
+    let response = tokimo_package_ssh::docker::prune_images(&creds).await?;
     Ok(ok(response))
 }
 
@@ -827,9 +827,9 @@ pub async fn ssh_docker_prune_volumes(
     State(state): State<Arc<AppState>>,
     AuthUser(_): AuthUser,
     Path(id): Path<String>,
-) -> Result<Json<ApiResponse<rust_ssh_terminal::docker::SshDockerPruneResponse>>, AppError> {
+) -> Result<Json<ApiResponse<tokimo_package_ssh::docker::SshDockerPruneResponse>>, AppError> {
     let creds = get_creds(&state, &id).await?;
-    let response = rust_ssh_terminal::docker::prune_volumes(&creds).await?;
+    let response = tokimo_package_ssh::docker::prune_volumes(&creds).await?;
     Ok(ok(response))
 }
 
@@ -837,9 +837,9 @@ pub async fn ssh_docker_prune_networks(
     State(state): State<Arc<AppState>>,
     AuthUser(_): AuthUser,
     Path(id): Path<String>,
-) -> Result<Json<ApiResponse<rust_ssh_terminal::docker::SshDockerPruneResponse>>, AppError> {
+) -> Result<Json<ApiResponse<tokimo_package_ssh::docker::SshDockerPruneResponse>>, AppError> {
     let creds = get_creds(&state, &id).await?;
-    let response = rust_ssh_terminal::docker::prune_networks(&creds).await?;
+    let response = tokimo_package_ssh::docker::prune_networks(&creds).await?;
     Ok(ok(response))
 }
 
@@ -847,8 +847,8 @@ pub async fn ssh_docker_prune_system(
     State(state): State<Arc<AppState>>,
     AuthUser(_): AuthUser,
     Path(id): Path<String>,
-) -> Result<Json<ApiResponse<rust_ssh_terminal::docker::SshDockerPruneResponse>>, AppError> {
+) -> Result<Json<ApiResponse<tokimo_package_ssh::docker::SshDockerPruneResponse>>, AppError> {
     let creds = get_creds(&state, &id).await?;
-    let response = rust_ssh_terminal::docker::prune_system(&creds).await?;
+    let response = tokimo_package_ssh::docker::prune_system(&creds).await?;
     Ok(ok(response))
 }
