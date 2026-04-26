@@ -9,8 +9,8 @@ use axum::{
     response::{IntoResponse, Json},
 };
 use futures_util::{SinkExt, StreamExt};
-use tokimo_package_ssh::SshCredentials;
 use serde::Deserialize;
+use tokimo_package_ssh::SshCredentials;
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
 use uuid::Uuid;
@@ -367,10 +367,10 @@ async fn handle_ssh_ws(
                     if input_tx
                         .send(tokimo_package_ssh::ShellInput::Data(data.to_vec()))
                         .await
-                        .is_err()
-                    => {
-                        break;
-                    }
+                        .is_err() =>
+                {
+                    break;
+                }
                 Message::Text(text) => {
                     let text_str: &str = &text;
                     if let Some(json_str) = text_str.strip_prefix('\x01') {
