@@ -10,6 +10,7 @@
  */
 
 import {
+  AppSetupGuide,
   AppSidebar,
   type AppSidebarItem,
   type ContextMenuItem,
@@ -17,8 +18,17 @@ import {
   Spin,
   useContextMenu,
 } from "@tokimo/ui";
-import { Copy, Monitor, Pencil, Plus, Trash2 } from "lucide-react";
+import {
+  Container,
+  Copy,
+  Monitor,
+  Pencil,
+  Plus,
+  Server,
+  Trash2,
+} from "lucide-react";
 import { lazy, Suspense, useCallback, useMemo, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { api, type SshTerminalOutput } from "@/generated/rust-api";
 import { randomUUID } from "@/lib/uuid";
 import { useContainerWidth } from "@/shared/hooks/use-container-width";
@@ -50,6 +60,7 @@ function parseSessions(v: unknown): Map<string, string> {
 // ── Page ──
 
 export default function TerminalAppPage() {
+  const { t } = useTranslation();
   const message = useMessage();
   const { metadata, updateMetadata, route, replace } = useWindowNav();
   const [containerRef, containerWidth] = useContainerWidth();
@@ -198,6 +209,28 @@ export default function TerminalAppPage() {
       })),
     [terminals, handleContextMenu],
   );
+
+  if (!terminalsQuery.isLoading && terminals.length === 0) {
+    return (
+      <AppSetupGuide
+        imageSrc="/page-icons/terminal.png"
+        accentColor="violet"
+        title={t("common.setupGuide.getStarted", { name: "Terminal" })}
+        description={t("common.setupGuide.terminalTagline")}
+        features={(
+          t("common.setupGuide.terminalFeatures", {
+            returnObjects: true,
+          }) as string[]
+        ).map((label, i) => ({
+          icon: [Server, Monitor, Container][i],
+          label,
+        }))}
+        actionLabel={t("common.setupGuide.terminalAction")}
+        actionIcon={Plus}
+        onAction={() => openEditorModal()}
+      />
+    );
+  }
 
   return (
     <div ref={containerRef} className="relative flex h-full">
