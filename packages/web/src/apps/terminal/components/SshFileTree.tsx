@@ -47,7 +47,7 @@ import {
   writeDragPayload,
 } from "@/apps/transfer/components/drag-drop";
 import { useTransfer } from "@/apps/transfer/components/use-transfer";
-import { buildSshFileUrl } from "@/apps/viewers/file-url";
+import { buildSshFileUrl, getFileWindowType } from "@/apps/viewers/file-url";
 import { api, type RustApiError } from "@/generated/rust-api";
 import type { SshFileEntry } from "@/generated/rust-types/SshFileEntry";
 import { useComponentPreference } from "@/shared/hooks/use-preference";
@@ -110,46 +110,6 @@ function joinPath(parent: string, name: string): string {
 /** Get parent directory of a path. */
 function getParentPath(p: string): string {
   return p.replace(/\/[^/]+$/, "") || "/";
-}
-
-const IMAGE_EXTS = new Set([
-  "jpg",
-  "jpeg",
-  "png",
-  "gif",
-  "webp",
-  "svg",
-  "bmp",
-  "ico",
-  "tiff",
-  "tif",
-  "avif",
-  "heic",
-  "heif",
-]);
-const VIDEO_EXTS = new Set([
-  "mp4",
-  "mkv",
-  "avi",
-  "mov",
-  "wmv",
-  "flv",
-  "webm",
-  "m4v",
-  "ts",
-]);
-const AUDIO_EXTS = new Set(["mp3", "flac", "aac", "ogg", "wav", "m4a", "opus"]);
-
-/** Determine the window type for a file based on its extension. */
-function getFileWindowType(
-  name: string,
-): "image" | "video" | "audio" | "pdf" | "text" {
-  const ext = (name.split(".").pop() ?? "").toLowerCase();
-  if (IMAGE_EXTS.has(ext)) return "image";
-  if (VIDEO_EXTS.has(ext)) return "video";
-  if (AUDIO_EXTS.has(ext)) return "audio";
-  if (ext === "pdf") return "pdf";
-  return "text";
 }
 
 /** Build the download URL for an SSH file. */
