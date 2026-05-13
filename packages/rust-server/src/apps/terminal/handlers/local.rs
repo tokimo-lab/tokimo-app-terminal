@@ -17,7 +17,7 @@ use tokio::sync::mpsc;
 use uuid::Uuid;
 
 use crate::AppState;
-use crate::apps::ai::handlers::settings::{load_sandbox, settings_to_boot_config};
+use crate::apps::ai::handlers::settings::default_sandbox_boot_config;
 use crate::apps::ai::sandbox::{SandboxRuntime, is_ch_backend};
 use crate::common::pty_session_registry::{PtyInput, PtySessionEntry};
 use crate::error::AppError;
@@ -37,17 +37,11 @@ pub struct TerminalWsQuery {
 /// WebSocket upgrade handler — authenticates as admin, then hands off to PTY session.
 pub async fn terminal_ws(
     State(state): State<Arc<AppState>>,
-    AuthUser(auth): AuthUser,
+    AuthUser(_auth): AuthUser,
     Query(query): Query<TerminalWsQuery>,
     ws: WebSocketUpgrade,
 ) -> Result<impl IntoResponse, AppError> {
-    let user_uuid: Uuid = auth
-        .user_id
-        .parse()
-        .map_err(|_| AppError::Internal("invalid user_id".into()))?;
-
-    let settings = load_sandbox(&state.db, user_uuid).await?;
-    let boot_config = settings_to_boot_config(&settings);
+    let boot_config = default_sandbox_boot_config();
     state.sandbox_runtime.apply_boot_config(boot_config.clone()).await;
 
     let sandbox_backend = if is_ch_backend(boot_config.effective_backend) {
