@@ -17,7 +17,6 @@ use tokio::sync::mpsc;
 use uuid::Uuid;
 
 use crate::AppState;
-use crate::apps::ai::handlers::settings::default_sandbox_boot_config;
 use crate::apps::ai::sandbox::{SandboxRuntime, is_ch_backend};
 use crate::common::pty_session_registry::{PtyInput, PtySessionEntry};
 use crate::error::AppError;
@@ -41,19 +40,13 @@ pub async fn terminal_ws(
     Query(query): Query<TerminalWsQuery>,
     ws: WebSocketUpgrade,
 ) -> Result<impl IntoResponse, AppError> {
-    let boot_config = default_sandbox_boot_config();
-    state.sandbox_runtime.apply_boot_config(boot_config.clone()).await;
-
-    let sandbox_backend = if is_ch_backend(boot_config.effective_backend) {
-        match state.sandbox_runtime.ensure_booted().await {
-            Ok(sandbox) => Some((sandbox, Arc::clone(&state.sandbox_runtime))),
-            Err(err) => {
-                tracing::error!(error = %err, "terminal_ws: microVM sandbox unavailable; falling back to host PTY");
-                None
-            }
+    let sandbox_backend = match state.sandbox_runtime.ensure_booted().await {
+        Ok(sandbox) if is_ch_backend(sandbox.active_backend()) => Some((sandbox, Arc::clone(&state.sandbox_runtime))),
+        Ok(_) => None,
+        Err(err) => {
+            tracing::error!(error = %err, "terminal_ws: microVM sandbox unavailable; falling back to host PTY");
+            None
         }
-    } else {
-        None
     };
 
     let registry = state.pty_sessions.clone();
