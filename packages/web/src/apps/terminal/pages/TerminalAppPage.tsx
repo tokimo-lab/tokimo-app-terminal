@@ -34,7 +34,7 @@ import { randomUUID } from "@/lib/uuid";
 import { useContainerWidth } from "@/shared/hooks/use-container-width";
 import { useWindowActions, useWindowId, useWindowNav } from "@/system";
 import { useMessage } from "@/system/notifications/useMessage";
-import type { TaskMetadata } from "@/system/window/window-types";
+import { PickCancelled, pickWithBridge } from "@/system/window-bridge";
 
 const SshTerminalWindow = lazy(
   () => import("@/apps/terminal/components/SshTerminalWindow"),
@@ -100,44 +100,50 @@ export default function TerminalAppPage() {
     },
   });
 
-  // ── Modal openers ──
-
-  const openEditorModal = useCallback(
-    (opts: { terminalId?: string; duplicateId?: string } = {}) => {
-      const meta: Record<string, unknown> = {};
-      if (opts.terminalId) meta.sshTerminalId = opts.terminalId;
-      if (opts.duplicateId) meta.sshTerminalDuplicateId = opts.duplicateId;
-      openModalWindow({
-        component: () =>
-          import("@/apps/settings/admin/SshTerminalEditorWindow"),
-        parentWindowId: windowId,
-        title: opts.terminalId ? "编辑终端" : "新建终端",
-        width: 640,
-        height: 620,
-        noResize: true,
-        noMinimize: true,
-        metadata:
-          Object.keys(meta).length > 0
-            ? (meta as Record<string, unknown> as TaskMetadata)
-            : undefined,
-      });
-    },
-    [openModalWindow, windowId],
-  );
-
   // ── Handlers ──
 
   const handleSelect = useCallback(
-    (t: SshTerminalOutput) => {
+    (terminalId: string) => {
       setSessions((prev) => {
-        if (prev.has(t.id)) return prev;
+        if (prev.has(terminalId)) return prev;
         const next = new Map(prev);
-        next.set(t.id, randomUUID());
+        next.set(terminalId, randomUUID());
         return next;
       });
-      replace(`/${t.id}`);
+      replace(`/${terminalId}`);
     },
     [replace, setSessions],
+  );
+
+  // ── Modal openers ──
+
+  const openEditorModal = useCallback(
+    async (opts: { terminalId?: string; duplicateId?: string } = {}) => {
+      const isEdit = !!opts.terminalId;
+      const meta: Record<string, unknown> = {};
+      if (opts.terminalId) meta.sshTerminalId = opts.terminalId;
+      if (opts.duplicateId) meta.sshTerminalDuplicateId = opts.duplicateId;
+      try {
+        const created = await pickWithBridge<{ id: string }>(openModalWindow, {
+          component: () =>
+            import("@/apps/settings/admin/SshTerminalEditorWindow"),
+          parentWindowId: windowId,
+          title: isEdit ? "编辑终端" : "新建终端",
+          width: 640,
+          height: 620,
+          noResize: true,
+          noMinimize: true,
+          metadata: Object.keys(meta).length > 0 ? meta : undefined,
+        });
+        if (!isEdit) {
+          handleSelect(created.id);
+        }
+      } catch (err) {
+        if (err instanceof PickCancelled) return;
+        throw err;
+      }
+    },
+    [openModalWindow, windowId, handleSelect],
   );
 
   const handleDelete = useCallback(
@@ -172,13 +178,17 @@ export default function TerminalAppPage() {
           key: "edit",
           label: "编辑",
           icon: <Pencil size={13} />,
-          onClick: () => openEditorModal({ terminalId: t.id }),
+          onClick: () => {
+            void openEditorModal({ terminalId: t.id });
+          },
         },
         {
           key: "duplicate",
           label: "复制",
           icon: <Copy size={13} />,
-          onClick: () => openEditorModal({ duplicateId: t.id }),
+          onClick: () => {
+            void openEditorModal({ duplicateId: t.id });
+          },
         },
         { type: "divider" },
         {
@@ -227,7 +237,9 @@ export default function TerminalAppPage() {
         }))}
         actionLabel={t("common.setupGuide.terminalAction")}
         actionIcon={Plus}
-        onAction={() => openEditorModal()}
+        onAction={() => {
+          void openEditorModal();
+        }}
       />
     );
   }
@@ -244,14 +256,16 @@ export default function TerminalAppPage() {
         }
         onSelect={(key) => {
           const t = terminals.find((x) => x.id === key);
-          if (t) handleSelect(t);
+          if (t) handleSelect(t.id);
         }}
         loading={terminalsQuery.isLoading}
         footer={
           <button
             type="button"
             className="flex w-full cursor-pointer items-center justify-center gap-1.5 rounded-md px-2 py-1.5 text-xs font-medium text-[var(--text-tertiary)] transition-colors hover:bg-[var(--accent-subtle)] hover:text-[var(--accent)]"
-            onClick={() => openEditorModal()}
+            onClick={() => {
+              void openEditorModal();
+            }}
           >
             <Plus className="h-3.5 w-3.5" />
             新建终端
