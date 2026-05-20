@@ -33,6 +33,7 @@ import {
   useWindowId,
   useWindowState,
 } from "@/system";
+import { installTerminalClipboard } from "../utils/terminal-clipboard";
 import SshDockerPanel from "./SshDockerPanel";
 import type { UploadItem, UploadQueue } from "./SshFileTree";
 import SshFileTree from "./SshFileTree";
@@ -432,24 +433,13 @@ export default function SshTerminalWindow({
         }
       });
 
-      // Ctrl+C (copy when selected) / Ctrl+V (paste from clipboard)
-      term.attachCustomKeyEventHandler((event: KeyboardEvent) => {
-        if (event.type !== "keydown" || !event.ctrlKey || event.shiftKey)
-          return true;
-        if (event.key === "c" && term.hasSelection()) {
-          navigator.clipboard.writeText(term.getSelection());
-          term.clearSelection();
-          return false;
-        }
-        if (event.key === "v") {
-          navigator.clipboard.readText().then((text) => {
-            if (ws && ws.readyState === WebSocket.OPEN) {
-              ws.send(new TextEncoder().encode(text));
-            }
-          });
-          return false;
-        }
-        return true;
+      // Ctrl/Cmd+C copy, Ctrl/Cmd+V paste (forwards to ws as PTY input).
+      installTerminalClipboard(term, {
+        onPaste: (text) => {
+          if (ws && ws.readyState === WebSocket.OPEN) {
+            ws.send(new TextEncoder().encode(text));
+          }
+        },
       });
 
       termRef.current = term;

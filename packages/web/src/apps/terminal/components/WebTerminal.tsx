@@ -10,6 +10,7 @@
 import "@xterm/xterm/css/xterm.css";
 import type { Terminal } from "@xterm/xterm";
 import { useEffect, useRef, useState } from "react";
+import { installTerminalClipboard } from "../utils/terminal-clipboard";
 
 const SESSION_STORAGE_KEY = "tokimo-terminal-session-id";
 
@@ -117,6 +118,14 @@ export default function WebTerminal({
 
       termRef.current = term;
       fitAddonRef.current = fitAddon;
+
+      installTerminalClipboard(term, {
+        onPaste: (text) => {
+          if (ws && ws.readyState === WebSocket.OPEN) {
+            ws.send(new TextEncoder().encode(text));
+          }
+        },
+      });
 
       // ── WebSocket connection ──────────────────────────────────────────
       const savedSession = sessionStorage.getItem(sessionStorageKey);
