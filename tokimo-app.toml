@@ -1,0 +1,28 @@
+[app]
+id          = "terminal"
+display     = "Terminal"
+version     = "0.1.0"
+description = "Tokimo Terminal — local PTY + SSH connections + Docker/file management"
+
+[runtime]
+binary    = "tokimo-app-terminal"
+ui_dist   = "ui/dist"
+lifecycle = "resident"
+
+[ui]
+entry       = "assets/index.js"
+window_type = "terminal"
+category    = "system"
+icon        = "Terminal"
+image       = "icon.png"
+color       = "#8b5cf6"
+width       = 1100
+height      = 700
+
+[cli]
+name = "tokimo-app-terminal"
+
+[database]
+schema         = "terminal"
+migrations_dir = "migrations"
+driver         = "postgres"

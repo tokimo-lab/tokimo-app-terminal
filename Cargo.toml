@@ -1,0 +1,43 @@
+[package]
+name        = "tokimo-app-terminal"
+version     = "0.1.0"
+edition     = "2024"
+rust-version = "1.94.0"
+license     = "MIT OR Apache-2.0"
+description = "Tokimo Terminal — local PTY + SSH connections + Docker/file management"
+repository  = "https://github.com/tokimo-lab/tokimo-app-terminal"
+
+[dependencies]
+tokimo-bus-client   = { git = "https://github.com/tokimo-lab/tokimo-bus.git", rev = "80063cb4391c5249df9cd3b570b1eabed64c3843" }
+tokimo-bus-protocol = { git = "https://github.com/tokimo-lab/tokimo-bus.git", rev = "80063cb4391c5249df9cd3b570b1eabed64c3843", features = ["axum"] }
+tokimo-bus-auth     = { git = "https://github.com/tokimo-lab/tokimo-bus.git", rev = "80063cb4391c5249df9cd3b570b1eabed64c3843", features = ["axum", "cli-db"] }
+tokimo-bus-cli      = { git = "https://github.com/tokimo-lab/tokimo-bus.git", rev = "80063cb4391c5249df9cd3b570b1eabed64c3843" }
+
+anyhow             = "1"
+axum               = { version = "0.8", features = ["json", "ws", "multipart"] }
+bytes              = "1"
+chrono             = { version = "0.4", features = ["serde"] }
+clap               = { version = "4", features = ["derive", "env"] }
+futures-util       = "0.3"
+mime_guess         = "2"
+portable-pty       = "0.9"
+rust-embed         = { version = "8", features = ["debug-embed"] }
+sea-orm            = { version = "2.0.0-rc.38", default-features = false, features = ["sqlx-postgres", "runtime-tokio-rustls", "with-uuid", "with-chrono", "macros"] }
+serde              = { version = "1", features = ["derive"] }
+serde_json         = "1"
+tokio              = { version = "1", features = ["rt-multi-thread", "macros", "time", "signal", "sync"] }
+tokio-stream       = "0.1"
+tokimo-package-ssh = { path = "../../packages/tokimo-package-ssh" }
+tracing            = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+ts-rs              = { version = "12", features = ["serde-json-impl", "uuid-impl", "chrono-impl"] }
+urlencoding        = "2"
+uuid               = { version = "1", features = ["v4", "serde"] }
+
+[lints]
+workspace = true
+
+[profile.release]
+lto       = "thin"
+opt-level = 3
+strip     = "symbols"
