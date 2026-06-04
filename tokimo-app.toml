@@ -20,7 +20,8 @@ width       = 1100
 height      = 700
 
 [cli]
-name = "tokimo-app-terminal"
+name        = "tokimo-app-terminal"
+description = "Open a local terminal or SSH connection for shell access and file management."
 
 [database]
 schema         = "terminal"
