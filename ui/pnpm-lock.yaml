@@ -11,13 +11,13 @@ importers:
   .:
     dependencies:
       '@tokimo/sdk':
-        specifier: github:tokimo-lab/tokimo-package-sdk#0abcc1ecb2af836a80911ff6cf16ae8295f041a4
+        specifier: https://github.com/tokimo-lab/tokimo-package-sdk.git#0abcc1ecb2af836a80911ff6cf16ae8295f041a4
         version: https://codeload.github.com/tokimo-lab/tokimo-package-sdk/tar.gz/0abcc1ecb2af836a80911ff6cf16ae8295f041a4(@tanstack/react-query@5.101.0(react@19.2.7))(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
       '@tokimo/terminal':
-        specifier: github:tokimo-lab/tokimo-package-terminal#master
-        version: git+https://git@github.com:tokimo-lab/tokimo-package-terminal.git#3eae8103715bb5764c108d7b52178395d7271a86(@xterm/addon-fit@0.11.0)(@xterm/addon-search@0.16.0)(@xterm/addon-web-links@0.12.0)(@xterm/xterm@6.0.0)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+        specifier: https://github.com/tokimo-lab/tokimo-package-terminal.git#master
+        version: https://codeload.github.com/tokimo-lab/tokimo-package-terminal/tar.gz/f5aedf223c9a11e836636fbf8da1491daee98899(@xterm/addon-fit@0.11.0)(@xterm/addon-search@0.16.0)(@xterm/addon-web-links@0.12.0)(@xterm/xterm@6.0.0)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
       '@tokimo/ui':
-        specifier: github:tokimo-lab/tokimo-ui#683e9322d6e96ded543c97805b25736750a09f11
+        specifier: https://github.com/tokimo-lab/tokimo-ui.git#683e9322d6e96ded543c97805b25736750a09f11
         version: https://codeload.github.com/tokimo-lab/tokimo-ui/tar.gz/683e9322d6e96ded543c97805b25736750a09f11(emoji-mart@5.6.0)(i18next@26.3.1(typescript@6.0.3))(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(tailwindcss@4.3.0)(typescript@6.0.3)
       lucide-react:
         specifier: ^1.11.0
@@ -30,7 +30,7 @@ importers:
         version: 19.2.7(react@19.2.7)
     devDependencies:
       '@tokimo/app-builder':
-        specifier: github:tokimo-lab/tokimo-app-builder#5be9a3e036908730a0ae7d9e49c7b3f76d7d30cb
+        specifier: https://github.com/tokimo-lab/tokimo-app-builder.git#5be9a3e036908730a0ae7d9e49c7b3f76d7d30cb
         version: https://codeload.github.com/tokimo-lab/tokimo-app-builder/tar.gz/5be9a3e036908730a0ae7d9e49c7b3f76d7d30cb(vite@8.0.16(jiti@2.7.0))
       '@types/react':
         specifier: ^19.2.14
@@ -345,8 +345,8 @@ packages:
       '@tokimo/viewers':
         optional: true
 
-  '@tokimo/terminal@git+https://git@github.com:tokimo-lab/tokimo-package-terminal.git#3eae8103715bb5764c108d7b52178395d7271a86':
-    resolution: {commit: 3eae8103715bb5764c108d7b52178395d7271a86, repo: git@github.com:tokimo-lab/tokimo-package-terminal.git, type: git}
+  '@tokimo/terminal@https://codeload.github.com/tokimo-lab/tokimo-package-terminal/tar.gz/f5aedf223c9a11e836636fbf8da1491daee98899':
+    resolution: {tarball: https://codeload.github.com/tokimo-lab/tokimo-package-terminal/tar.gz/f5aedf223c9a11e836636fbf8da1491daee98899}
     version: 0.1.0
     peerDependencies:
       '@xterm/addon-fit': ^0.11.0
@@ -1310,7 +1310,7 @@ snapshots:
       react: 19.2.7
       react-dom: 19.2.7(react@19.2.7)
 
-  '@tokimo/terminal@git+https://git@github.com:tokimo-lab/tokimo-package-terminal.git#3eae8103715bb5764c108d7b52178395d7271a86(@xterm/addon-fit@0.11.0)(@xterm/addon-search@0.16.0)(@xterm/addon-web-links@0.12.0)(@xterm/xterm@6.0.0)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)':
+  '@tokimo/terminal@https://codeload.github.com/tokimo-lab/tokimo-package-terminal/tar.gz/f5aedf223c9a11e836636fbf8da1491daee98899(@xterm/addon-fit@0.11.0)(@xterm/addon-search@0.16.0)(@xterm/addon-web-links@0.12.0)(@xterm/xterm@6.0.0)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)':
     dependencies:
       '@xterm/addon-fit': 0.11.0
       '@xterm/addon-search': 0.16.0
