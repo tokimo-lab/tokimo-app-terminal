@@ -63,6 +63,7 @@ pub struct InternalSshCredentialsOutput {
 }
 
 impl From<ssh_terminal::Model> for InternalSshCredentialsOutput {
+    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
     fn from(m: ssh_terminal::Model) -> Self {
         Self {
             host: m.host,
@@ -78,6 +79,7 @@ impl From<ssh_terminal::Model> for InternalSshCredentialsOutput {
 }
 
 impl From<&ssh_terminal::Model> for SshCredentials {
+    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
     fn from(m: &ssh_terminal::Model) -> Self {
         Self {
             host: m.host.clone(),

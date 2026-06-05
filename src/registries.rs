@@ -18,6 +18,7 @@ pub struct PtySessionEntry {
 }
 
 impl PtySessionEntry {
+    #[allow(clippy::needless_pass_by_value)]
     pub fn broadcast(&mut self, data: Vec<u8>) {
         self.history.extend_from_slice(&data);
         if self.history.len() > MAX_HISTORY_BYTES {
@@ -37,6 +38,7 @@ pub struct SshSessionEntry {
 }
 
 impl SshSessionEntry {
+    #[allow(clippy::needless_pass_by_value)]
     pub fn broadcast(&mut self, data: Bytes) {
         self.history.extend_from_slice(&data);
         if self.history.len() > MAX_HISTORY_BYTES {
