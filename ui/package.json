@@ -7,6 +7,9 @@
     "build": "vite build",
     "dev": "vite build --watch"
   },
+  "pnpm": {
+    "onlyBuiltDependencies": ["@tokimo/terminal"]
+  },
   "dependencies": {
     "@tokimo/sdk": "github:tokimo-lab/tokimo-package-sdk#0abcc1ecb2af836a80911ff6cf16ae8295f041a4",
     "@tokimo/terminal": "github:tokimo-lab/tokimo-package-terminal#master",
