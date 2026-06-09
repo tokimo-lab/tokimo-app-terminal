@@ -32,6 +32,7 @@ export interface CreateSshTerminalInput {
 
 export interface UpdateSshTerminalInput
   extends Partial<CreateSshTerminalInput> {
+  id?: string;
   isEnabled?: boolean;
 }
 

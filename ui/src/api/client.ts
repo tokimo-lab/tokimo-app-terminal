@@ -24,6 +24,16 @@ interface ApiEnvelope<T> {
   error?: string;
 }
 
+/** Error carrying the HTTP status so callers can branch on e.g. 404. */
+export class ApiError extends Error {
+  readonly status: number;
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+  }
+}
+
 const API_BASE = "/api/apps/terminal";
 
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
@@ -34,8 +44,12 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const text = await res.text();
   const json = text ? (JSON.parse(text) as ApiEnvelope<T>) : undefined;
   if (!res.ok)
-    throw new Error(json?.error ?? `${res.status} ${res.statusText}`);
-  if (!json?.success) throw new Error(json?.error ?? "API request failed");
+    throw new ApiError(
+      json?.error ?? `${res.status} ${res.statusText}`,
+      res.status,
+    );
+  if (!json?.success)
+    throw new ApiError(json?.error ?? "API request failed", res.status);
   return json.data as T;
 }
 
@@ -118,6 +132,10 @@ export const terminalApi = {
     ),
   downloadUrl: (id: string, path: string) =>
     httpUrl(`/connections/${enc(id)}/download?path=${enc(path)}`),
+  uploadUrl: (id: string, dir: string, filename: string) =>
+    httpUrl(
+      `/connections/${enc(id)}/upload?path=${enc(dir)}&filename=${enc(filename)}`,
+    ),
   upload: async (id: string, dir: string, file: File): Promise<void> => {
     const form = new FormData();
     form.append("file", file);
