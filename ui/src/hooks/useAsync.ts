@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type DependencyList } from "react";
+import { type DependencyList, useCallback, useEffect, useState } from "react";
 
 export interface AsyncState<T> {
   data: T | null;
@@ -7,13 +7,17 @@ export interface AsyncState<T> {
   reload: () => void;
 }
 
-export function useAsync<T>(loader: () => Promise<T>, deps: DependencyList): AsyncState<T> {
+export function useAsync<T>(
+  loader: () => Promise<T>,
+  deps: DependencyList,
+): AsyncState<T> {
   const [data, setData] = useState<T | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [version, setVersion] = useState(0);
   const reload = useCallback(() => setVersion((v) => v + 1), []);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: caller-provided deps + version drive reloads
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
@@ -23,7 +27,8 @@ export function useAsync<T>(loader: () => Promise<T>, deps: DependencyList): Asy
         if (!cancelled) setData(value);
       })
       .catch((err: unknown) => {
-        if (!cancelled) setError(err instanceof Error ? err.message : String(err));
+        if (!cancelled)
+          setError(err instanceof Error ? err.message : String(err));
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
