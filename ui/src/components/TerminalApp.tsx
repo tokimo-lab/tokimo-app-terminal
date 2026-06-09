@@ -75,7 +75,11 @@ export function TerminalApp() {
             />
           </div>
         )}
-        {terminals.error && <div className="absolute bottom-3 left-3 rounded border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-200">{terminals.error}</div>}
+        {terminals.error && (
+          <div className="absolute bottom-3 left-3 rounded border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-200">
+            {terminals.error}
+          </div>
+        )}
       </div>
     </div>
   );
