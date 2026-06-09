@@ -8,13 +8,18 @@
     "dev": "vite build --watch"
   },
   "pnpm": {
-    "onlyBuiltDependencies": ["@tokimo/terminal"]
+    "onlyBuiltDependencies": [
+      "@tokimo/terminal"
+    ]
   },
   "dependencies": {
     "@tokimo/sdk": "https://github.com/tokimo-lab/tokimo-package-sdk.git#0abcc1ecb2af836a80911ff6cf16ae8295f041a4",
     "@tokimo/terminal": "https://github.com/tokimo-lab/tokimo-package-terminal.git#master",
     "@tokimo/ui": "github:tokimo-lab/tokimo-ui#511e982d4fc87e487a04501b29c4f5083164bda6",
-    "lucide-react": "^1.11.0",
+    "@xterm/addon-fit": "^0.11.0",
+    "@xterm/addon-web-links": "^0.12.0",
+    "@xterm/xterm": "^6.0.0",
+    "lucide-react": "1.7.0",
     "react": "^19.2.5",
     "react-dom": "^19.2.5"
   },
