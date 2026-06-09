@@ -1,77 +1,307 @@
-import { FileText, Folder, RefreshCw, Trash2 } from "lucide-react";
-import { useCallback, useState } from "react";
-import { terminalApi } from "../api/client";
+import {
+  type ContextMenuItem,
+  Empty,
+  Modal,
+  Spin,
+  Table,
+  type TableColumn,
+  useContextMenu,
+  useToast,
+} from "@tokimo/ui";
+import {
+  Download,
+  File,
+  FilePen,
+  Folder,
+  FolderInput,
+  Pencil,
+  Trash2,
+} from "lucide-react";
+import { type MouseEvent, useState } from "react";
+import { useAppCtx } from "../AppContext";
 import type { SshFileEntry } from "../api/types";
-import { useAsync } from "../hooks/useAsync";
+import { useSshFiles } from "../hooks/useSshFiles";
+import { formatBytes } from "../lib/format";
+import { joinPath } from "../lib/path";
+import { FileToolbar } from "./files/FileToolbar";
+import { TextEditModal } from "./files/TextEditModal";
+import { PromptModal } from "./PromptModal";
 
-interface FilesPanelProps { terminalId: string }
+interface FilesPanelProps {
+  terminalId: string;
+}
+
+type PromptKind = "mkdir" | "rename" | "move";
+
+interface PromptState {
+  kind: PromptKind;
+  entry?: SshFileEntry;
+  title: string;
+  label: string;
+  defaultValue: string;
+  confirmText: string;
+}
 
 export function FilesPanel({ terminalId }: FilesPanelProps) {
-  const [path, setPath] = useState("/");
-  const [selected, setSelected] = useState<SshFileEntry | null>(null);
-  const [content, setContent] = useState("");
-  const loader = useCallback(() => terminalApi.ls(terminalId, path), [terminalId, path]);
-  const files = useAsync(loader, [loader]);
+  const ctx = useAppCtx();
+  const toast = useToast();
+  const files = useSshFiles(terminalId);
+  const { open: openCtxMenu, contextMenu } = useContextMenu();
+
+  const [prompt, setPrompt] = useState<PromptState | null>(null);
+  const [promptBusy, setPromptBusy] = useState(false);
+  const [editPath, setEditPath] = useState<string | null>(null);
+
+  const reportError = (err: unknown) =>
+    toast.error(err instanceof Error ? err.message : String(err));
+
+  const fullPath = (entry: SshFileEntry) => joinPath(files.path, entry.name);
+
+  const openInViewer = (entry: SshFileEntry) => {
+    ctx.shell.viewer.openFileViewer({
+      filePath: fullPath(entry),
+      fileName: entry.name,
+      sshTerminalId: terminalId,
+    });
+  };
 
   const openEntry = (entry: SshFileEntry) => {
-    const fullPath = join(path, entry.name);
-    setSelected(entry);
     if (entry.isDir) {
-      setPath(fullPath);
-      setContent("");
+      files.navigate(fullPath(entry));
       return;
     }
-    terminalApi.readFile(terminalId, fullPath).then((r) => setContent(r.content)).catch((e: unknown) => setContent(e instanceof Error ? e.message : String(e)));
+    openInViewer(entry);
   };
 
-  const save = () => {
-    if (!selected || selected.isDir) return;
-    void terminalApi.writeFile(terminalId, join(path, selected.name), content).then(() => files.reload());
+  const promptMkdir = () =>
+    setPrompt({
+      kind: "mkdir",
+      title: "New folder",
+      label: "Folder name",
+      defaultValue: "",
+      confirmText: "Create",
+    });
+
+  const promptRename = (entry: SshFileEntry) =>
+    setPrompt({
+      kind: "rename",
+      entry,
+      title: `Rename ${entry.name}`,
+      label: "New name",
+      defaultValue: entry.name,
+      confirmText: "Rename",
+    });
+
+  const promptMove = (entry: SshFileEntry) =>
+    setPrompt({
+      kind: "move",
+      entry,
+      title: `Move ${entry.name}`,
+      label: "Destination directory",
+      defaultValue: files.path,
+      confirmText: "Move",
+    });
+
+  const confirmDelete = (entry: SshFileEntry) => {
+    Modal.confirm({
+      title: `Delete ${entry.name}?`,
+      content: entry.isDir
+        ? "This directory and its contents will be permanently removed."
+        : "This file will be permanently removed.",
+      okText: "Delete",
+      okButtonProps: { danger: true },
+      onOk: () =>
+        files.remove(fullPath(entry)).catch((err: unknown) => {
+          reportError(err);
+          throw err;
+        }),
+    });
   };
 
-  const remove = (entry: SshFileEntry) => {
-    if (!confirm(`Delete ${entry.name}?`)) return;
-    void terminalApi.rm(terminalId, join(path, entry.name)).then(() => files.reload());
+  const runPrompt = async (value: string) => {
+    if (!prompt) return;
+    setPromptBusy(true);
+    try {
+      if (prompt.kind === "mkdir") {
+        await files.mkdir(value);
+      } else if (prompt.kind === "rename" && prompt.entry) {
+        await files.rename(fullPath(prompt.entry), value);
+      } else if (prompt.kind === "move" && prompt.entry) {
+        await files.move(fullPath(prompt.entry), value);
+      }
+      setPrompt(null);
+    } catch (err) {
+      reportError(err);
+    } finally {
+      setPromptBusy(false);
+    }
   };
 
-  const mkdir = () => {
-    const name = prompt("Folder name");
-    if (!name) return;
-    void terminalApi.mkdir(terminalId, join(path, name)).then(() => files.reload());
+  const handleUpload = (list: FileList) => {
+    files
+      .upload(list)
+      .then(() => toast.success(`Uploaded ${list.length} file(s)`))
+      .catch(reportError);
   };
+
+  const openRowMenu = (e: MouseEvent, entry: SshFileEntry) => {
+    e.preventDefault();
+    const items: ContextMenuItem[] = [
+      {
+        key: "open",
+        label: "Open",
+        icon: <File className="h-4 w-4" />,
+        onClick: () => openEntry(entry),
+      },
+    ];
+    if (!entry.isDir) {
+      items.push({
+        key: "edit",
+        label: "Edit as text",
+        icon: <FilePen className="h-4 w-4" />,
+        onClick: () => setEditPath(fullPath(entry)),
+      });
+      items.push({
+        key: "download",
+        label: "Download",
+        icon: <Download className="h-4 w-4" />,
+        onClick: () => files.download(entry),
+      });
+    }
+    items.push({ key: "d1", type: "divider" });
+    items.push({
+      key: "rename",
+      label: "Rename",
+      icon: <Pencil className="h-4 w-4" />,
+      onClick: () => promptRename(entry),
+    });
+    items.push({
+      key: "move",
+      label: "Move",
+      icon: <FolderInput className="h-4 w-4" />,
+      onClick: () => promptMove(entry),
+    });
+    items.push({ key: "d2", type: "divider" });
+    items.push({
+      key: "delete",
+      label: "Delete",
+      icon: <Trash2 className="h-4 w-4" />,
+      danger: true,
+      onClick: () => confirmDelete(entry),
+    });
+    openCtxMenu(e, items);
+  };
+
+  const columns: TableColumn<SshFileEntry>[] = [
+    {
+      key: "name",
+      title: "Name",
+      dataIndex: "name",
+      render: (_value, record) => (
+        <span className="flex items-center gap-2">
+          {record.isDir ? (
+            <Folder className="h-4 w-4 shrink-0 text-sky-400" />
+          ) : (
+            <File className="h-4 w-4 shrink-0 text-zinc-400" />
+          )}
+          <span className="truncate text-zinc-200">{record.name}</span>
+        </span>
+      ),
+    },
+    {
+      key: "size",
+      title: "Size",
+      dataIndex: "size",
+      width: 100,
+      align: "right",
+      render: (_value, record) => (
+        <span className="text-zinc-400">
+          {record.isDir ? "" : formatBytes(record.size)}
+        </span>
+      ),
+    },
+    {
+      key: "modifiedAt",
+      title: "Modified",
+      dataIndex: "modifiedAt",
+      width: 170,
+      render: (_value, record) => (
+        <span className="text-zinc-400">{record.modifiedAt ?? ""}</span>
+      ),
+    },
+    {
+      key: "mode",
+      title: "Mode",
+      dataIndex: "mode",
+      width: 120,
+      render: (_value, record) => (
+        <span className="font-mono text-zinc-500">{record.mode ?? ""}</span>
+      ),
+    },
+  ];
 
   return (
-    <div className="grid h-full grid-cols-[320px_1fr] bg-zinc-950">
-      <section className="flex min-h-0 flex-col border-r border-white/10">
-        <div className="flex items-center gap-2 border-b border-white/10 p-2">
-          <button type="button" className="cursor-pointer rounded px-2 py-1 text-xs text-zinc-300 hover:bg-white/10" onClick={() => setPath(parent(path))}>Up</button>
-          <button type="button" className="cursor-pointer rounded px-2 py-1 text-xs text-zinc-300 hover:bg-white/10" onClick={mkdir}>New folder</button>
-          <button type="button" className="ml-auto cursor-pointer rounded p-1 text-zinc-400 hover:bg-white/10" onClick={files.reload}><RefreshCw className="h-4 w-4" /></button>
-        </div>
-        <div className="border-b border-white/10 px-3 py-2 font-mono text-xs text-zinc-400">{path}</div>
-        <div className="min-h-0 flex-1 overflow-auto p-2">
-          {files.error && <div className="p-2 text-xs text-red-300">{files.error}</div>}
-          {(files.data?.entries ?? []).map((entry) => (
-            <div key={entry.name} className="flex items-center gap-2 rounded-md px-2 py-1.5 hover:bg-white/5">
-              <button type="button" className="flex min-w-0 flex-1 cursor-pointer items-center gap-2 text-left" onClick={() => openEntry(entry)}>
-                {entry.isDir ? <Folder className="h-4 w-4 text-sky-400" /> : <FileText className="h-4 w-4 text-zinc-400" />}
-                <span className="truncate text-sm text-zinc-200">{entry.name}</span>
-              </button>
-              <button type="button" className="cursor-pointer rounded p-1 text-zinc-500 hover:bg-red-500/10 hover:text-red-300" onClick={() => remove(entry)}><Trash2 className="h-3.5 w-3.5" /></button>
-            </div>
-          ))}
-        </div>
-      </section>
-      <section className="flex min-h-0 flex-col">
-        <div className="flex items-center justify-between border-b border-white/10 px-3 py-2 text-xs text-zinc-400">
-          <span>{selected?.isDir ? "Directory" : selected?.name ?? "Select a file"}</span>
-          <button type="button" className="cursor-pointer rounded bg-violet-600 px-2 py-1 text-white disabled:opacity-50" disabled={!selected || selected.isDir} onClick={save}>Save</button>
-        </div>
-        <textarea className="min-h-0 flex-1 resize-none bg-zinc-950 p-3 font-mono text-xs text-zinc-100 outline-none" value={content} onChange={(e) => setContent(e.target.value)} placeholder="File preview/editor" />
-      </section>
+    <div className="flex h-full min-h-0 flex-col bg-zinc-950">
+      <FileToolbar
+        path={files.path}
+        loading={files.loading}
+        onNavigate={files.navigate}
+        onUp={files.goUp}
+        onRefresh={files.refresh}
+        onNewFolder={promptMkdir}
+        onUpload={handleUpload}
+      />
+
+      <div className="min-h-0 flex-1 overflow-auto">
+        {files.error ? (
+          <div className="p-3 text-xs text-red-300">{files.error}</div>
+        ) : files.loading && files.entries.length === 0 ? (
+          <div className="flex h-40 items-center justify-center">
+            <Spin />
+          </div>
+        ) : files.entries.length === 0 ? (
+          <div className="flex h-40 items-center justify-center">
+            <Empty description="Empty directory" />
+          </div>
+        ) : (
+          <Table<SshFileEntry>
+            columns={columns}
+            dataSource={files.entries}
+            rowKey="name"
+            size="small"
+            pagination={false}
+            rowClassName="cursor-pointer"
+            onRow={(record) => ({
+              onDoubleClick: () => openEntry(record),
+              onContextMenu: (e) => openRowMenu(e, record),
+            })}
+          />
+        )}
+      </div>
+
+      <PromptModal
+        open={prompt !== null}
+        title={prompt?.title ?? ""}
+        label={prompt?.label}
+        defaultValue={prompt?.defaultValue}
+        confirmText={prompt?.confirmText}
+        loading={promptBusy}
+        onClose={() => setPrompt(null)}
+        onConfirm={runPrompt}
+      />
+
+      <TextEditModal
+        terminalId={terminalId}
+        filePath={editPath}
+        onClose={() => setEditPath(null)}
+        onError={reportError}
+        onSaved={() => {
+          toast.success("Saved");
+          files.refresh();
+        }}
+      />
+
+      {contextMenu}
     </div>
   );
 }
-
-function join(base: string, name: string): string { return base === "/" ? `/${name}` : `${base}/${name}`; }
-function parent(value: string): string { return value.replace(/\/[^/]+$/, "") || "/"; }
