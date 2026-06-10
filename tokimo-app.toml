@@ -27,3 +27,18 @@ description = "Open a local terminal or SSH connection for shell access and file
 schema         = "terminal"
 migrations_dir = "migrations"
 driver         = "postgres"
+
+[[settings]]
+id    = "sidebar"
+title = "settings.sidebar.title"
+icon  = "Sidebar"
+
+[[settings.fields]]
+key          = "sidebarCollapsed"
+type         = "boolean"
+label        = "settings.sidebar.defaultCollapsed"
+defaultValue = false
+
+[settings.fields.preferenceScope]
+scope    = "component"
+scope_id = "terminal"

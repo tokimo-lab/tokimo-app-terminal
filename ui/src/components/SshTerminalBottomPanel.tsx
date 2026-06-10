@@ -1,10 +1,12 @@
 /**
  * Bottom panel component for SSH terminal.
  * Renders tabbed panel with file browser, processes, storage, network, docker tabs.
- * Preserves all TabButton usages, className strings, Chinese labels, biome-ignore comments.
  */
 
+import { Tabs, Tooltip } from "@tokimo/ui";
 import {
+  ChevronsDown,
+  ChevronsUp,
   Container,
   FolderTree,
   HardDrive,
@@ -18,7 +20,6 @@ import SshFileTree from "./SshFileTree";
 import SshNetworkPanel from "./SshNetworkPanel";
 import SshProcessList from "./SshProcessList";
 import SshStoragePanel from "./SshStoragePanel";
-import { TabButton } from "./SshTerminalPanelBits";
 
 type BottomTab = "files" | "processes" | "storage" | "network" | "docker";
 
@@ -70,66 +71,76 @@ export default function SshTerminalBottomPanel({
           className="shrink-0 bg-black/[0.04] dark:bg-zinc-900/40 flex flex-col overflow-hidden"
           style={panelCollapsed ? undefined : { height: panelHeight }}
         >
-          {/* Tab bar — click blank area to collapse/expand */}
-          {/* biome-ignore lint/a11y/noStaticElementInteractions: drag/click area */}
-          {/* biome-ignore lint/a11y/useKeyWithClickEvents: collapse toggle, keyboard not needed */}
+          {/* Tab bar — click blank area to expand when collapsed */}
+          {/* biome-ignore lint/a11y/noStaticElementInteractions: click to expand */}
           <div
-            className="flex items-center shrink-0 border-b border-black/[0.06] dark:border-zinc-800/40 cursor-pointer select-none"
-            onClick={onToggleCollapse}
+            className="shrink-0"
+            onClick={panelCollapsed ? onToggleCollapse : undefined}
           >
-            <TabButton
-              active={bottomTab === "files"}
-              collapsed={panelCollapsed}
-              onClick={(e) => {
-                e.stopPropagation();
-                onTabButtonClick("files");
-              }}
-              icon={<FolderTree className="h-3 w-3" />}
-              label="文件"
-              badge={activeUploadCount > 0 ? activeUploadCount : undefined}
+            <Tabs
+              type="line"
+              size="small"
+              activeKey={bottomTab}
+              onChange={(key) => onTabButtonClick(key as BottomTab)}
+              sticky={false}
+              items={[
+                {
+                  key: "files",
+                  label: "文件",
+                  icon: <FolderTree className="h-3 w-3" />,
+                  badge: activeUploadCount > 0 ? activeUploadCount : undefined,
+                },
+                {
+                  key: "processes",
+                  label: "进程",
+                  icon: <ListTree className="h-3 w-3" />,
+                },
+                {
+                  key: "storage",
+                  label: "存储",
+                  icon: <HardDrive className="h-3 w-3" />,
+                },
+                {
+                  key: "network",
+                  label: "网络",
+                  icon: <Network className="h-3 w-3" />,
+                },
+                {
+                  key: "docker",
+                  label: "Docker",
+                  icon: <Container className="h-3 w-3" />,
+                },
+              ]}
+              tabBarExtraContent={
+                !panelCollapsed ? (
+                  <Tooltip title="收起面板">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onToggleCollapse();
+                      }}
+                      className="flex h-6 w-6 cursor-pointer items-center justify-center rounded text-fg-muted transition-colors hover:bg-black/[0.06] dark:hover:bg-white/[0.08]"
+                    >
+                      <ChevronsDown size={14} />
+                    </button>
+                  </Tooltip>
+                ) : (
+                  <Tooltip title="展开面板">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onToggleCollapse();
+                      }}
+                      className="flex h-6 w-6 cursor-pointer items-center justify-center rounded text-fg-muted transition-colors hover:bg-black/[0.06] dark:hover:bg-white/[0.08]"
+                    >
+                      <ChevronsUp size={14} />
+                    </button>
+                  </Tooltip>
+                )
+              }
             />
-            <TabButton
-              active={bottomTab === "processes"}
-              collapsed={panelCollapsed}
-              onClick={(e) => {
-                e.stopPropagation();
-                onTabButtonClick("processes");
-              }}
-              icon={<ListTree className="h-3 w-3" />}
-              label="进程"
-            />
-            <TabButton
-              active={bottomTab === "storage"}
-              collapsed={panelCollapsed}
-              onClick={(e) => {
-                e.stopPropagation();
-                onTabButtonClick("storage");
-              }}
-              icon={<HardDrive className="h-3 w-3" />}
-              label="存储"
-            />
-            <TabButton
-              active={bottomTab === "network"}
-              collapsed={panelCollapsed}
-              onClick={(e) => {
-                e.stopPropagation();
-                onTabButtonClick("network");
-              }}
-              icon={<Network className="h-3 w-3" />}
-              label="网络"
-            />
-            <TabButton
-              active={bottomTab === "docker"}
-              collapsed={panelCollapsed}
-              onClick={(e) => {
-                e.stopPropagation();
-                onTabButtonClick("docker");
-              }}
-              icon={<Container className="h-3 w-3" />}
-              label="Docker"
-            />
-            {/* flex-1 spacer makes the rest of the bar clickable */}
-            <div className="flex-1" />
           </div>
 
           {/* Tab content - hidden when collapsed */}

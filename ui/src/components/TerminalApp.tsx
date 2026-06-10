@@ -7,7 +7,7 @@
  * 选中项通过窗口路由持久化，已激活 session 持久化到窗口 metadata，刷新不丢失。
  */
 
-import { useWindowActions, useWindowNav } from "@tokimo/sdk";
+import { useSidebarCollapsed, useWindowActions, useWindowNav } from "@tokimo/sdk";
 import {
   AppSetupGuide,
   AppSidebar,
@@ -15,12 +15,15 @@ import {
   type ContextMenuItem,
   Modal,
   Spin,
+  Tooltip,
   useContextMenu,
 } from "@tokimo/ui";
 import {
   Container,
   Copy,
   Monitor,
+  PanelLeft,
+  PanelLeftClose,
   Pencil,
   Plus,
   Server,
@@ -71,7 +74,11 @@ export function TerminalApp() {
   const { route, replace } = useWindowNav();
   const { openModalWindow } = useWindowActions();
   const [containerRef, containerWidth] = useContainerWidth();
-  const sidebarCollapsed = containerWidth > 0 && containerWidth < 720;
+  const { collapsed: sidebarCollapsed, onToggleCollapse } = useSidebarCollapsed(
+    "terminal",
+    containerWidth > 0 && containerWidth < 720,
+  );
+
   const { open: openCtxMenu, contextMenu } = useContextMenu();
 
   // Derive selection from window route
@@ -249,6 +256,51 @@ export function TerminalApp() {
     );
   }
 
+  const collapsedFooter = (
+    <div className="flex flex-col items-center gap-1">
+      <Tooltip title="新建终端" placement="right">
+        <button
+          type="button"
+          onClick={() => openEditorModal()}
+          className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-lg text-fg-muted transition-colors hover:bg-black/[0.06] dark:hover:bg-white/[0.08]"
+        >
+          <Plus size={15} className="opacity-70" />
+        </button>
+      </Tooltip>
+      <Tooltip title="展开侧边栏" placement="right">
+        <button
+          type="button"
+          onClick={onToggleCollapse}
+          className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-lg text-fg-muted transition-colors hover:bg-black/[0.06] dark:hover:bg-white/[0.08]"
+        >
+          <PanelLeft size={15} className="opacity-70" />
+        </button>
+      </Tooltip>
+    </div>
+  );
+
+  const fullFooter = (
+    <div className="flex items-center">
+      <button
+        type="button"
+        onClick={() => openEditorModal()}
+        className="flex flex-1 cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-xs text-fg-muted transition-colors hover:bg-black/[0.06] dark:hover:bg-white/[0.08]"
+      >
+        <Plus size={14} className="shrink-0 opacity-60" />
+        <span>新建终端</span>
+      </button>
+      <Tooltip title="收起侧边栏">
+        <button
+          type="button"
+          onClick={onToggleCollapse}
+          className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg text-fg-muted transition-colors hover:bg-black/[0.06] dark:hover:bg-white/[0.08]"
+        >
+          <PanelLeftClose size={14} className="opacity-70" />
+        </button>
+      </Tooltip>
+    </div>
+  );
+
   return (
     <div ref={containerRef} className="relative flex h-full">
       {/* ── Left Sidebar ── */}
@@ -264,16 +316,7 @@ export function TerminalApp() {
           if (t) handleSelect(t.id);
         }}
         loading={isLoading}
-        footer={
-          <button
-            type="button"
-            className="flex w-full cursor-pointer items-center justify-center gap-1.5 rounded-md px-2 py-1.5 text-xs font-medium text-[var(--text-tertiary)] transition-colors hover:bg-[var(--accent-subtle)] hover:text-[var(--accent)]"
-            onClick={() => openEditorModal()}
-          >
-            <Plus className="h-3.5 w-3.5" />
-            新建终端
-          </button>
-        }
+        footer={sidebarCollapsed ? collapsedFooter : fullFooter}
       />
 
       {/* ── Right Content ── */}
