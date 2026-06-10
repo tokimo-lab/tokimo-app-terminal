@@ -20,8 +20,8 @@ pub async fn run_list(auth: TokimoAuthArgs) -> anyhow::Result<()> {
         return Ok(());
     }
     println!(
-        "{:<38}  {:<16}  {:<20}  {:<6}  {:<12}  {:<12}  {:<6}  {}",
-        "ID", "NAME", "HOST", "PORT", "USER", "AUTH", "ON", "NOTES"
+        "{:<38}  {:<16}  {:<20}  {:<6}  {:<12}  {:<12}  {:<6}  NOTES",
+        "ID", "NAME", "HOST", "PORT", "USER", "AUTH", "ON"
     );
     for s in &servers {
         println!(
