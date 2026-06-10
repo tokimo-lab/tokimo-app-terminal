@@ -1,5 +1,5 @@
 ---
-name: terminal-ssh
+name: ssh
 description: "Manage SSH servers and run remote commands."
 when-to-use: "When the user wants to list, add, edit, or remove SSH servers, or execute a command on a remote server."
 argument-hint: "<server name> [command]"
