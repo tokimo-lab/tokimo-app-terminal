@@ -51,10 +51,7 @@ pub async fn run_show(auth: TokimoAuthArgs, server: String) -> anyhow::Result<()
     println!("username:   {}", output.username);
     println!("auth:       {}", output.auth_method);
     println!("has_key:    {}", if output.has_private_key { "yes" } else { "no" });
-    println!(
-        "startup:    {}",
-        output.startup_command.as_deref().unwrap_or("-")
-    );
+    println!("startup:    {}", output.startup_command.as_deref().unwrap_or("-"));
     println!("notes:      {}", output.notes.as_deref().unwrap_or("-"));
     println!("enabled:    {}", if output.is_enabled { "yes" } else { "no" });
     println!("created:    {}", output.created_at);
@@ -108,9 +105,7 @@ pub async fn run_rm(auth: TokimoAuthArgs, server: String) -> anyhow::Result<()> 
     let terminal = resolve_server(&db, &server).await?;
     let name = terminal.name.clone();
     let id = terminal.id;
-    SshTerminalRepo::delete(&db, id)
-        .await
-        .context("delete server failed")?;
+    SshTerminalRepo::delete(&db, id).await.context("delete server failed")?;
     println!("Deleted server '{name}' (id: {id})");
     Ok(())
 }
