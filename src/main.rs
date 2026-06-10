@@ -1,5 +1,7 @@
 //! Tokimo Terminal App — sidecar CLI / server binary.
 
+#![allow(clippy::print_stdout, clippy::print_stderr)]
+
 const MANIFEST: &str = include_str!("../tokimo-app.toml");
 
 mod app_server;
@@ -24,8 +26,8 @@ pub use error::AppError;
 #[derive(Parser, Debug)]
 #[command(
     name = "tokimo-app-terminal",
-    about = "Terminal — Tokimo local PTY + SSH sidecar",
-    long_about = "Tokimo Terminal CLI. With TOKIMO_BUS_SOCKET set, starts the sidecar server; otherwise prints help or runs CLI subcommands.",
+    about = "Terminal — Tokimo SSH server management & remote execution CLI",
+    long_about = "Tokimo Terminal CLI — manage SSH servers and execute remote commands.\n\nDirectly connects to the database (via DATABASE_URL), does not require the main server to be running.",
     term_width = 100
 )]
 struct Cli {
@@ -37,13 +39,89 @@ struct Cli {
 
 #[derive(Subcommand, Debug)]
 enum Command {
-    /// Print a greeting
-    Greet { name: String },
+    /// List all SSH servers
+    List,
+
+    /// Show server details
+    Show {
+        /// Server name or UUID
+        server: String,
+    },
+
+    /// Add an SSH server
+    Add {
+        #[arg(long)]
+        name: String,
+        #[arg(long)]
+        host: String,
+        #[arg(long, short = 'u')]
+        user: String,
+        #[arg(long, short, default_value = "22")]
+        port: i32,
+        #[arg(long, default_value = "password")]
+        auth: String,
+        #[arg(long)]
+        password: Option<String>,
+        #[arg(long)]
+        key: Option<String>,
+        #[arg(long)]
+        passphrase: Option<String>,
+        #[arg(long)]
+        startup: Option<String>,
+        #[arg(long)]
+        notes: Option<String>,
+    },
+
+    /// Remove an SSH server
+    Rm {
+        /// Server name or UUID
+        server: String,
+    },
+
+    /// Update an SSH server
+    Edit {
+        /// Server name or UUID
+        server: String,
+        #[arg(long)]
+        name: Option<String>,
+        #[arg(long)]
+        host: Option<String>,
+        #[arg(long, short = 'u')]
+        user: Option<String>,
+        #[arg(long, short)]
+        port: Option<i32>,
+        #[arg(long)]
+        auth: Option<String>,
+        #[arg(long)]
+        password: Option<String>,
+        #[arg(long)]
+        key: Option<String>,
+        #[arg(long)]
+        passphrase: Option<String>,
+        #[arg(long)]
+        startup: Option<String>,
+        #[arg(long)]
+        notes: Option<String>,
+    },
+
+    /// Execute a command on a remote server
+    ///
+    /// Examples:
+    ///   tokimo-app-terminal exec my-server "df -h"
+    ///   tokimo-app-terminal exec my-server ls -la
+    #[command(trailing_var_arg = true)]
+    Exec {
+        /// Server name or UUID
+        server: String,
+        /// Command to execute (supports multiple args without quoting)
+        #[arg(required = true, num_args = 1..)]
+        command: Vec<String>,
+    },
 }
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    let Cli { auth: _, command } = Cli::parse();
+    let Cli { auth, command } = Cli::parse();
 
     match command {
         None if std::env::var_os("TOKIMO_BUS_SOCKET").is_some() => {
@@ -64,8 +142,76 @@ async fn main() -> anyhow::Result<()> {
             tokimo_bus_cli::print_help_unified(&mut cmd);
             std::process::exit(0);
         }
-        Some(Command::Greet { name }) => {
-            cli::run_greet(name);
+        Some(cmd) => {
+            let result = match cmd {
+                Command::List => cli::servers::run_list(auth).await,
+                Command::Show { server } => cli::servers::run_show(auth, server).await,
+                Command::Add {
+                    name,
+                    host,
+                    user,
+                    port,
+                    auth: auth_method,
+                    password,
+                    key,
+                    passphrase,
+                    startup,
+                    notes,
+                } => {
+                    cli::servers::run_add(
+                        auth,
+                        name,
+                        host,
+                        user,
+                        port,
+                        auth_method,
+                        password,
+                        key,
+                        passphrase,
+                        startup,
+                        notes,
+                    )
+                    .await
+                }
+                Command::Rm { server } => cli::servers::run_rm(auth, server).await,
+                Command::Edit {
+                    server,
+                    name,
+                    host,
+                    user,
+                    port,
+                    auth: auth_method,
+                    password,
+                    key,
+                    passphrase,
+                    startup,
+                    notes,
+                } => {
+                    cli::servers::run_edit(
+                        auth,
+                        server,
+                        name,
+                        host,
+                        user,
+                        port,
+                        auth_method,
+                        password,
+                        key,
+                        passphrase,
+                        startup,
+                        notes,
+                    )
+                    .await
+                }
+                Command::Exec { server, command } => {
+                    let cmd = command.join(" ");
+                    cli::exec::run_exec(auth, server, cmd).await
+                }
+            };
+            if let Err(error) = result {
+                eprintln!("Error: {error:#}");
+                std::process::exit(1);
+            }
         }
     }
 
