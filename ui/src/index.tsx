@@ -25,7 +25,7 @@ export default defineApp({
       <StrictMode>
         <RuntimeProvider value={ctx}>
           <AppCtxProvider value={ctx}>
-            <ConfigProvider>
+            <ConfigProvider dateFormat={{}}>
               <ToastProvider>
                 <TerminalApp />
               </ToastProvider>
