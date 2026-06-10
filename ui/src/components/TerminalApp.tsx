@@ -320,7 +320,7 @@ export function TerminalApp() {
       />
 
       {/* ── Right Content ── */}
-      <div className="flex-1 min-w-0 relative">
+      <div className="flex-1 min-w-0 relative bg-[var(--color-surface-content)]">
         {/* Empty state */}
         {selection.kind === "none" && (
           <div className="flex flex-col items-center justify-center h-full text-[var(--text-quaternary)] gap-2">
