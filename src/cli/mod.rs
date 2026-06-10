@@ -30,9 +30,10 @@ pub async fn resolve_server(
 ) -> anyhow::Result<crate::db::entities::ssh_terminal::Model> {
     // Try UUID first
     if let Ok(id) = Uuid::parse_str(arg)
-        && let Ok(terminal) = SshTerminalRepo::get_raw(db, id).await {
-            return Ok(terminal);
-        }
+        && let Ok(terminal) = SshTerminalRepo::get_raw(db, id).await
+    {
+        return Ok(terminal);
+    }
 
     // Match by name
     let all = SshTerminalRepo::list_all(db).await?;
