@@ -15,7 +15,7 @@
   "dependencies": {
     "@tokimo/sdk": "https://github.com/tokimo-lab/tokimo-package-sdk.git#0abcc1ecb2af836a80911ff6cf16ae8295f041a4",
     "@tokimo/terminal": "https://github.com/tokimo-lab/tokimo-package-terminal.git#master",
-    "@tokimo/ui": "github:tokimo-lab/tokimo-ui#511e982d4fc87e487a04501b29c4f5083164bda6",
+    "@tokimo/ui": "github:tokimo-lab/tokimo-ui#7d358dcee47ef0cdcbff9bc74474a5b71a1455c4",
     "@xterm/addon-fit": "^0.11.0",
     "@xterm/addon-web-links": "^0.12.0",
     "@xterm/xterm": "^6.0.0",
