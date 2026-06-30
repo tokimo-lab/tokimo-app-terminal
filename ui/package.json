@@ -9,7 +9,8 @@
   },
   "pnpm": {
     "onlyBuiltDependencies": [
-      "@tokimo/terminal"
+      "@tokimo/terminal",
+      "@tokimo/terminal@https://codeload.github.com/tokimo-lab/tokimo-package-terminal/tar.gz/34dc0a0d35a387d55e8ca936f5be68004cc0eabc"
     ]
   },
   "dependencies": {
