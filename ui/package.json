@@ -13,7 +13,7 @@
     ]
   },
   "dependencies": {
-    "@tokimo/sdk": "https://github.com/tokimo-lab/tokimo-package-sdk.git#0abcc1ecb2af836a80911ff6cf16ae8295f041a4",
+    "@tokimo/sdk": "github:tokimo-lab/tokimo-package-sdk#72d1bf6248739641ab213635ca6b2367b9b10d86",
     "@tokimo/terminal": "https://github.com/tokimo-lab/tokimo-package-terminal.git#master",
     "@tokimo/ui": "github:tokimo-lab/tokimo-ui#0d09afd6d88365fa40dfe729fedf9fb30331eb5e",
     "@xterm/addon-fit": "^0.11.0",
@@ -30,5 +30,6 @@
     "tailwindcss": "^4.3.0",
     "typescript": "^6.0.3",
     "vite": "^8.0.10"
-  }
+  },
+  "packageManager": "pnpm@10.33.0"
 }

@@ -54,7 +54,7 @@ const SshTerminalWindow = lazy(() => import("./SshTerminalWindow"));
 type Selection = { kind: "none" } | { kind: "terminal"; terminalId: string };
 
 function routeToSelection(route: string): Selection {
-  const idMatch = route.match(/^\/([^/]+)$/);
+  const idMatch = route.split(/[?#]/, 1)[0].match(/^\/([^/]+)$/);
   if (idMatch) return { kind: "terminal", terminalId: idMatch[1] };
   return { kind: "none" };
 }

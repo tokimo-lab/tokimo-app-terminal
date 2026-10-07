@@ -19,6 +19,11 @@ export default defineApp({
     defaultSize: { width: 1100, height: 700 },
     category: "system",
   },
+  standalone: {
+    createWindow: (route) => ({ type: "terminal", route }),
+    getRoute: (window) =>
+      window.type === "terminal" ? (window.route ?? "/") : null,
+  },
   mount(container, ctx): Dispose {
     const root: Root = createRoot(container);
     root.render(
